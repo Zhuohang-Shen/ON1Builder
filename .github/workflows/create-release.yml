@@ -86,7 +86,9 @@ jobs:
           echo "$matches" | while IFS= read -r art; do
             name=$(echo "$art" | jq -r '.name')
             id=$(echo "$art" | jq -r '.id')
-            zip="${name}.zip"
+            short_name="${name##*-}"
+            short_name="${short_name:-$name}"
+            zip="${short_name}.zip"
 
             echo "▶ Downloading artifact: $name (ID $id)"
 
