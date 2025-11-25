@@ -15,7 +15,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.ORG_WIDE_TOKEN }}
 
     steps:
       - name: Create timestamp
@@ -27,29 +27,18 @@ jobs:
       - name: Create GitHub Release
         id: create-release
         run: |
-          tag="analysis-${{ steps.ts.outputs.ts }}-$RANDOM"
-          name="Continuous Analysis Run ${{ steps.ts.outputs.ts }}"
+          tag="analysis-${{ steps.ts.outputs.ts }}"
+          name="Continuous Analysis Release (${{ steps.ts.outputs.ts }})"
 
-          echo "Creating release: $name (tag=$tag)"
+          echo "Creating release: $name"
 
-          response=$(curl -s -w "\n%{http_code}" -X POST \
+          response=$(curl -s -X POST \
             -H "Authorization: token $GH_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"tag_name\": \"$tag\", \"name\": \"$name\", \"draft\": false}" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases")
 
-          body=$(echo "$response" | head -n -1)
-          code=$(echo "$response" | tail -n1)
-
-          echo "Release API status: $code"
-          echo "Response body: $body"
-
-          if [[ "$code" -ne 201 ]]; then
-            echo "❌ Failed to create release"
-            exit 1
-          fi
-
-          upload_url=$(echo "$body" | jq -r '.upload_url' | sed 's/{?name,label}//')
+          upload_url=$(echo "$response" | jq -r '.upload_url' | sed 's/{?name,label}//')
           echo "upload_url=$upload_url" >> $GITHUB_OUTPUT
 
       - name: Fetch all artifact metadata
@@ -89,14 +78,12 @@ jobs:
 
           matches=$(jq -c --arg p "$prefix" '.[] | select(.name | startswith($p))' all_artifacts.json)
 
-          if [[ "$(echo "$matches" | wc -l)" -eq 0 ]]; then
+          if [[ -z "$matches" ]]; then
             echo "❌ No artifacts found starting with: $prefix"
             exit 1
           fi
 
-          mapfile -t match_array < <(echo "$matches")
-
-          for art in "${match_array[@]}"; do
+          echo "$matches" | while IFS= read -r art; do
             name=$(echo "$art" | jq -r '.name')
             id=$(echo "$art" | jq -r '.id')
             zip="${name}.zip"
