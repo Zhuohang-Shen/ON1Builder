@@ -78,7 +78,7 @@ jobs:
 
           matches=$(jq -c --arg p "$prefix" '.[] | select(.name | startswith($p))' all_artifacts.json)
 
-          if [[ -z "$matches" ]]; then
+          if [[ "$(echo "$matches" | wc -l)" -eq 0 ]]; then
             echo "❌ No artifacts found starting with: $prefix"
             exit 1
           fi
