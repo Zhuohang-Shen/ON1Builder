@@ -83,12 +83,12 @@ jobs:
             exit 1
           fi
 
-          echo "$matches" | while IFS= read -r art; do
+          mapfile -t match_array < <(echo "$matches")
+
+          for art in "${match_array[@]}"; do
             name=$(echo "$art" | jq -r '.name')
             id=$(echo "$art" | jq -r '.id')
-            short_name="${name##*-}"
-            short_name="${short_name:-$name}"
-            zip="artifact-${short_name}.zip"
+            zip="${name}.zip"
 
             echo "▶ Downloading artifact: $name (ID $id)"
 
