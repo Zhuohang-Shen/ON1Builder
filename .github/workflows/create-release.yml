@@ -27,18 +27,29 @@ jobs:
       - name: Create GitHub Release
         id: create-release
         run: |
-          tag="analysis-${{ steps.ts.outputs.ts }}"
-          name="Continuous Analysis Release (${{ steps.ts.outputs.ts }})"
+          tag="analysis-${{ steps.ts.outputs.ts }}-$RANDOM"
+          name="Continuous Analysis Run ${{ steps.ts.outputs.ts }}"
 
-          echo "Creating release: $name"
+          echo "Creating release: $name (tag=$tag)"
 
-          response=$(curl -s -X POST \
+          response=$(curl -s -w "\n%{http_code}" -X POST \
             -H "Authorization: token $GH_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"tag_name\": \"$tag\", \"name\": \"$name\", \"draft\": false}" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases")
 
-          upload_url=$(echo "$response" | jq -r '.upload_url' | sed 's/{?name,label}//')
+          body=$(echo "$response" | head -n -1)
+          code=$(echo "$response" | tail -n1)
+
+          echo "Release API status: $code"
+          echo "Response body: $body"
+
+          if [[ "$code" -ne 201 ]]; then
+            echo "❌ Failed to create release"
+            exit 1
+          fi
+
+          upload_url=$(echo "$body" | jq -r '.upload_url' | sed 's/{?name,label}//')
           echo "upload_url=$upload_url" >> $GITHUB_OUTPUT
 
       - name: Fetch all artifact metadata
