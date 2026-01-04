@@ -175,10 +175,10 @@ class GlobalSettings(BaseModel):
                     setattr(self, key, value)
 
         except ImportError:
-            # Validation module not available, skip enhanced validation
+            # Validation module not available, skip ON1Builder validation
             pass
         except Exception as e:
-            logger.warning(f"Enhanced validation failed: {e}")
+            logger.warning(f"ON1Builder validation failed: {e}")
 
         return self
 
@@ -195,7 +195,7 @@ class GlobalSettings(BaseModel):
     fallback_gas_price_gwei: int = Field(default=50, gt=0)
     min_wallet_balance: float = Field(default=0.05, ge=0)
 
-    # Strategy & Profit - Enhanced with dynamic thresholds
+    # Strategy & Profit - ON1Builder with dynamic thresholds
     min_profit_eth: float = Field(default=0.005, ge=0)
     min_profit_percentage: float = Field(default=0.1, ge=0)  # Minimum profit as % of investment
     dynamic_profit_scaling: bool = Field(default=True)  # Scale profit requirements based on balance
@@ -245,7 +245,7 @@ class GlobalSettings(BaseModel):
     connection_retry_count: int = Field(default=5, gt=0)
     connection_retry_delay: float = Field(default=5.0, gt=0)
 
-    # Enhanced arbitrage settings
+    # ON1Builder arbitrage settings
     arbitrage_scan_interval: int = Field(default=15, gt=0)
 
     # Performance monitoring

@@ -1,6 +1,6 @@
 # src/on1builder/config/manager.py
 # flake8: noqa W293
-"""Enhanced configuration management for ON1Builder."""
+"""ON1Builder configuration management for ON1Builder."""
 
 from __future__ import annotations
 import os

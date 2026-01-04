@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 class StrategyExecutor:
     """
-    Enhanced strategy executor with dynamic ML adaptation, balance awareness,
+    ON1Builder strategy executor with dynamic ML adaptation, balance awareness,
     and sophisticated profit optimization.
     """
 
@@ -28,7 +28,7 @@ class StrategyExecutor:
         self._balance_manager = balance_manager
         self._strategy_weights_path = get_strategy_weights_path()
 
-        # Enhanced strategy mapping with metadata
+        # ON1Builder strategy mapping with metadata
         self._strategies: Dict[str, Dict[str, Any]] = {
             "arbitrage": {
                 "functions": [self._tx_manager.execute_arbitrage],
@@ -83,14 +83,14 @@ class StrategyExecutor:
 
         self._load_weights()
         self._initialize_performance_tracking()
-        logger.info("Enhanced StrategyExecutor initialized with ML and balance awareness.")
+        logger.info("ON1Builder StrategyExecutor initialized with ML and balance awareness.")
 
     @staticmethod
     def _mean(values: List[float]) -> float:
         return sum(values) / len(values) if values else 0.0
 
     def _load_weights(self):
-        """Enhanced weight loading with validation and migration."""
+        """ON1Builder weight loading with validation and migration."""
         try:
             if self._strategy_weights_path.exists():
                 with open(self._strategy_weights_path, "r") as f:
@@ -122,7 +122,7 @@ class StrategyExecutor:
                 self._weights[strategy_name] = [1.0 for _ in range(num_functions)]
 
     def _save_weights(self):
-        """Enhanced weight saving with metadata."""
+        """ON1Builder weight saving with metadata."""
         data = {
             "version": "2.0",
             "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -246,7 +246,7 @@ class StrategyExecutor:
 
     async def _select_strategy(self, opportunity: Dict[str, Any]) -> Tuple[Optional[Callable], str]:
         """
-        Enhanced strategy selection with multi-factor optimization.
+        ON1Builder strategy selection with multi-factor optimization.
         """
         eligible_strategies = await self._get_eligible_strategies(opportunity)
 
@@ -281,7 +281,7 @@ class StrategyExecutor:
 
     async def execute_opportunity(self, opportunity: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Enhanced opportunity execution with comprehensive tracking and learning.
+        ON1Builder opportunity execution with comprehensive tracking and learning.
         """
         self._execution_count += 1
 
@@ -302,14 +302,14 @@ class StrategyExecutor:
                 "balance_tier": balance_summary["balance_tier"],
             }
 
-        # Enhance opportunity with balance-aware parameters
-        enhanced_opportunity = await self._enhance_opportunity_with_balance(opportunity)
+        # ON1Builder opportunity with balance-aware parameters
+        ON1Builder_opportunity = await self._ON1Builder_opportunity_with_balance(opportunity)
 
         start_time = time.monotonic()
         gas_used = 0
 
         try:
-            result = await strategy_func(enhanced_opportunity)
+            result = await strategy_func(ON1Builder_opportunity)
 
             success = result.get("success", False)
             profit = result.get("profit_eth", 0.0)
@@ -338,13 +338,13 @@ class StrategyExecutor:
             execution_time = time.monotonic() - start_time
             logger.info(f"Strategy '{strategy_name}' execution time: {execution_time:.4f}s")
 
-    async def _enhance_opportunity_with_balance(
+    async def _ON1Builder_opportunity_with_balance(
         self, opportunity: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Enhances opportunity parameters based on current balance situation.
+        ON1Builders opportunity parameters based on current balance situation.
         """
-        enhanced = opportunity.copy()
+        ON1Builder = opportunity.copy()
         balance_summary = await self._balance_manager.get_balance_summary()
 
         # Adjust investment amount
@@ -352,14 +352,14 @@ class StrategyExecutor:
         max_amount = balance_summary["max_investment"]
 
         if requested_amount > max_amount:
-            enhanced["investment_amount"] = max_amount
-            enhanced["original_amount"] = requested_amount
-            enhanced["amount_limited"] = True
+            ON1Builder["investment_amount"] = max_amount
+            ON1Builder["original_amount"] = requested_amount
+            ON1Builder["amount_limited"] = True
 
         # Set dynamic profit threshold
-        enhanced["min_profit_threshold"] = balance_summary["profit_threshold"]
-        enhanced["balance_tier"] = balance_summary["balance_tier"]
-        enhanced["flashloan_recommended"] = balance_summary["flashloan_recommended"]
+        ON1Builder["min_profit_threshold"] = balance_summary["profit_threshold"]
+        ON1Builder["balance_tier"] = balance_summary["balance_tier"]
+        ON1Builder["flashloan_recommended"] = balance_summary["flashloan_recommended"]
 
         # Adjust gas parameters
         expected_profit = opportunity.get("expected_profit_eth", 0)
@@ -367,10 +367,10 @@ class StrategyExecutor:
             gas_price, should_proceed = await self._balance_manager.calculate_optimal_gas_price(
                 Decimal(str(expected_profit))
             )
-            enhanced["optimal_gas_price"] = gas_price
-            enhanced["gas_viable"] = should_proceed
+            ON1Builder["optimal_gas_price"] = gas_price
+            ON1Builder["gas_viable"] = should_proceed
 
-        return enhanced
+        return ON1Builder
 
     def _update_strategy_performance(
         self, strategy_name: str, success: bool, profit: float, gas_used: int
@@ -401,7 +401,7 @@ class StrategyExecutor:
     def _update_weights_ml(
         self, strategy_name: str, success: bool, profit: float, opportunity: Dict[str, Any]
     ):
-        """Enhanced ML weight update with contextual learning."""
+        """ON1Builder ML weight update with contextual learning."""
         if strategy_name not in self._weights:
             return
 
@@ -439,7 +439,7 @@ class StrategyExecutor:
             / 3.0,
         ]
 
-        # Simple linear update (can be enhanced with more sophisticated ML)
+        # Simple linear update (can be ON1Builder with more sophisticated ML)
         for i in range(len(current_weights)):
             gradient = base_reward * context_vector[min(i, len(context_vector) - 1)]
             current_weights[i] += self._learning_rate * gradient

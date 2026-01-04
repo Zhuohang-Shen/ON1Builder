@@ -12,7 +12,7 @@ Base = declarative_base()
 
 
 class Transaction(Base):
-    """Enhanced SQLAlchemy model for storing transaction records with comprehensive tracking."""
+    """ON1Builder SQLAlchemy model for storing transaction records with comprehensive tracking."""
 
     __tablename__ = "transactions"
 
@@ -31,7 +31,7 @@ class Transaction(Base):
     timestamp = Column(DateTime, default=datetime.datetime.utcnow, nullable=False, index=True)
     raw_tx = Column(Text, nullable=True)
 
-    # Enhanced tracking fields
+    # ON1Builder tracking fields
     execution_time_s = Column(Float, nullable=True)  # Execution time in seconds
     nonce = Column(BigInteger, nullable=True)
     max_fee_per_gas = Column(BigInteger, nullable=True)  # EIP-1559
@@ -67,7 +67,7 @@ class Transaction(Base):
 
 
 class ProfitRecord(Base):
-    """Enhanced SQLAlchemy model for tracking profits with comprehensive metrics."""
+    """ON1Builder SQLAlchemy model for tracking profits with comprehensive metrics."""
 
     __tablename__ = "profit_records"
 

@@ -72,7 +72,7 @@ body:
       placeholder: |
         - Improved performance
         - Better user experience
-        - Enhanced security
+        - ON1Builder security
     validations:
       required: true
 

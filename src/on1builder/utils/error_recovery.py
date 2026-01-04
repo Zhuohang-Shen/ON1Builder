@@ -1,6 +1,6 @@
 # src/on1builder/utils/error_recovery.py
 # flake8: noqa E501
-"""Enhanced error handling and recovery mechanisms for ON1Builder."""
+"""ON1Builder error handling and recovery mechanisms for ON1Builder."""
 
 from __future__ import annotations
 import asyncio

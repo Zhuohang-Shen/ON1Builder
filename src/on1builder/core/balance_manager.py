@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 
 class BalanceManager:
     """
-    Enhanced balance manager with sophisticated profit tracking,
+    ON1Builder balance manager with sophisticated profit tracking,
     multi-token support, and intelligent caching strategies.
     """
 
@@ -70,13 +70,13 @@ class BalanceManager:
         self.balance_tier: str = "unknown"
         self.notification_service = NotificationService()
 
-        # Enhanced locking and caching
+        # ON1Builder locking and caching
         self._balance_lock = asyncio.Lock()
         self._token_lock = asyncio.Lock()
         self._last_balance_check = 0
         self._token_balance_cache: Dict[str, Tuple[Decimal, float]] = {}
 
-        # Enhanced profit tracking with granular metrics
+        # ON1Builder profit tracking with granular metrics
         self._total_profit: Decimal = Decimal("0")
         self._session_profit: Decimal = Decimal("0")
         self._profit_by_strategy: Dict[str, Decimal] = {}
@@ -92,10 +92,10 @@ class BalanceManager:
         # Multi-token balance tracking
         self.balances: Dict[str, Decimal] = {}
 
-        logger.info(f"Enhanced BalanceManager initialized for wallet: {wallet_address}")
+        logger.info(f"ON1Builder BalanceManager initialized for wallet: {wallet_address}")
 
     async def update_balance(self, force: bool = False) -> Decimal:
-        """Enhanced balance update with intelligent caching."""
+        """ON1Builder balance update with intelligent caching."""
         import time
 
         async with self._balance_lock:
@@ -141,7 +141,7 @@ class BalanceManager:
                 return self.current_balance
 
     def _determine_balance_tier(self, balance: Decimal) -> str:
-        """Enhanced balance tier determination with configurable thresholds."""
+        """ON1Builder balance tier determination with configurable thresholds."""
         for tier, threshold in reversed(list(BALANCE_TIER_THRESHOLDS.items())):
             if balance >= threshold:
                 return tier
@@ -313,7 +313,7 @@ class BalanceManager:
         self, token_identifier: Optional[str] = None, force_refresh: bool = False
     ) -> Decimal:
         """
-        Enhanced balance retrieval supporting both token symbols and addresses.
+        ON1Builder balance retrieval supporting both token symbols and addresses.
 
         Args:
             token_identifier: Token symbol (e.g., 'ETH', 'USDC') or contract address.
@@ -447,7 +447,7 @@ class BalanceManager:
 
     async def get_balances(self, token_identifiers: List[str]) -> Dict[str, Decimal]:
         """
-        Enhanced method to get balances for multiple tokens efficiently using concurrent calls.
+        ON1Builder method to get balances for multiple tokens efficiently using concurrent calls.
 
         Args:
             token_identifiers: List of token symbols or contract addresses
@@ -527,7 +527,7 @@ class BalanceManager:
         context: Optional[str] = None,
         gas_cost: Decimal = Decimal("0"),
     ):
-        """Enhanced profit recording with comprehensive analytics."""
+        """ON1Builder profit recording with comprehensive analytics."""
         profit_amount = Decimal(str(profit_amount))
 
         # Backwards compatibility: third positional argument as gas cost
@@ -586,7 +586,7 @@ class BalanceManager:
         )
 
     def get_profit_summary(self) -> Dict[str, Any]:
-        """Get comprehensive profit summary with enhanced metrics."""
+        """Get comprehensive profit summary with ON1Builder metrics."""
         total_trades = self._performance_metrics["total_trades"]
         profitable_trades = self._performance_metrics["profitable_trades"]
         total_gas = self._performance_metrics["total_gas_spent"]
@@ -712,7 +712,7 @@ class BalanceManager:
 
     def get_balance_aware_investment_limit(self, strategy_type: str = "standard") -> Decimal:
         """
-        Enhanced investment limit calculation with strategy-specific adjustments.
+        ON1Builder investment limit calculation with strategy-specific adjustments.
 
         Args:
             strategy_type: Type of strategy to adjust limits for

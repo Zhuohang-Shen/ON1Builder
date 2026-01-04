@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 
 class ChainWorker:
     """
-    Enhanced chain worker with balance management and comprehensive monitoring.
+    ON1Builder chain worker with balance management and comprehensive monitoring.
     Manages all operations for a single blockchain with balance-aware strategies.
     """
 
@@ -48,7 +48,7 @@ class ChainWorker:
         self.safety_guard: Optional[SafetyGuard] = None
         self.nonce_manager: Optional[NonceManager] = None
 
-        # Performance tracking with enhanced metrics
+        # Performance tracking with ON1Builder metrics
         self._performance_stats = {
             "opportunities_detected": 0,
             "opportunities_executed": 0,
@@ -62,14 +62,14 @@ class ChainWorker:
         self._start_time = 0
         self._memory_optimizer = get_memory_optimizer()
 
-        logger.info(f"Enhanced ChainWorker created for chain ID: {self.chain_id}")
+        logger.info(f"ON1Builder ChainWorker created for chain ID: {self.chain_id}")
 
     async def initialize(self):
         """
-        Enhanced initialization with balance management and comprehensive validation.
+        ON1Builder initialization with balance management and comprehensive validation.
         """
         try:
-            logger.info(f"[Chain {self.chain_id}] Initializing enhanced worker components...")
+            logger.info(f"[Chain {self.chain_id}] Initializing ON1Builder worker components...")
 
             # Initialize Web3 connection
             self.web3 = await Web3ConnectionFactory.create_connection(self.chain_id)
@@ -122,7 +122,7 @@ class ChainWorker:
             # Register memory cleanup callbacks
             self._memory_optimizer.register_cleanup_callback(self._cleanup_worker_caches)
 
-            logger.info(f"[Chain {self.chain_id}] Enhanced worker initialized successfully.")
+            logger.info(f"[Chain {self.chain_id}] ON1Builder worker initialized successfully.")
             logger.info(
                 f"[Chain {self.chain_id}] Balance tier: {balance_summary['balance_tier']}, "
                 f"Max investment: {balance_summary['max_investment']:.6f} ETH"
@@ -133,7 +133,7 @@ class ChainWorker:
             raise InitializationError(f"ChainWorker {self.chain_id} failed to initialize.") from e
 
     async def start(self):
-        """Enhanced startup with performance tracking and monitoring."""
+        """ON1Builder startup with performance tracking and monitoring."""
         if self.is_running:
             logger.warning(f"[Chain {self.chain_id}] Worker is already running.")
             return
@@ -147,23 +147,23 @@ class ChainWorker:
         self.is_running = True
         self._start_time = asyncio.get_event_loop().time()
 
-        logger.info(f"[Chain {self.chain_id}] Starting enhanced background tasks...")
+        logger.info(f"[Chain {self.chain_id}] Starting ON1Builder background tasks...")
 
         # Start core monitoring tasks
         self._tasks.append(asyncio.create_task(self.market_feed.start()))
         self._tasks.append(asyncio.create_task(self.tx_scanner.start()))
-        self._tasks.append(asyncio.create_task(self._enhanced_heartbeat()))
+        self._tasks.append(asyncio.create_task(self._ON1Builder_heartbeat()))
         self._tasks.append(asyncio.create_task(self._balance_monitoring_loop()))
         self._tasks.append(asyncio.create_task(self._performance_reporting_loop()))
 
         await asyncio.gather(*self._tasks, return_exceptions=True)
 
     async def stop(self):
-        """Enhanced stop with comprehensive cleanup and final reporting."""
+        """ON1Builder stop with comprehensive cleanup and final reporting."""
         if not self.is_running:
             return
 
-        logger.info(f"[Chain {self.chain_id}] Stopping enhanced worker...")
+        logger.info(f"[Chain {self.chain_id}] Stopping ON1Builder worker...")
         self.is_running = False
 
         # Cancel all tasks
@@ -183,7 +183,7 @@ class ChainWorker:
         # Final performance report
         await self._generate_final_report()
 
-        logger.info(f"[Chain {self.chain_id}] Enhanced worker stopped.")
+        logger.info(f"[Chain {self.chain_id}] ON1Builder worker stopped.")
 
     def _cleanup_worker_caches(self) -> None:
         """Memory cleanup callback for worker-specific caches."""
@@ -214,8 +214,8 @@ class ChainWorker:
         except Exception as e:
             logger.error(f"[Chain {self.chain_id}] Error in worker cache cleanup: {e}")
 
-    async def _enhanced_heartbeat(self):
-        """Enhanced heartbeat with comprehensive status reporting."""
+    async def _ON1Builder_heartbeat(self):
+        """ON1Builder heartbeat with comprehensive status reporting."""
         while self.is_running:
             try:
                 # Update performance stats
@@ -232,7 +232,7 @@ class ChainWorker:
                 memory_metrics = self._memory_optimizer.get_current_metrics()
 
                 logger.info(
-                    f"[Chain {self.chain_id} Enhanced Heartbeat] "
+                    f"[Chain {self.chain_id} ON1Builder Heartbeat] "
                     f"Status: Running | "
                     f"Balance: {balance_summary['balance']:.6f} ETH ({balance_summary['balance_tier']}) | "
                     f"Pending TXs: {self.tx_scanner.get_pending_tx_count()} | "
@@ -252,7 +252,7 @@ class ChainWorker:
                 break
             except Exception as e:
                 self._performance_stats["error_count"] += 1
-                logger.error(f"[Chain {self.chain_id} Enhanced Heartbeat] Error: {e}")
+                logger.error(f"[Chain {self.chain_id} ON1Builder Heartbeat] Error: {e}")
                 await asyncio.sleep(settings.heartbeat_interval)
 
     async def _balance_monitoring_loop(self):

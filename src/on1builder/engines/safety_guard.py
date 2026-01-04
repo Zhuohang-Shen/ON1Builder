@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 class SafetyGuard:
     """
-    Enhanced safety guard with sophisticated risk management, balance awareness,
+    ON1Builder safety guard with sophisticated risk management, balance awareness,
     and adaptive circuit breaking.
     """
 
@@ -88,7 +88,7 @@ class SafetyGuard:
             "check_distribution": {check_name: 0 for check_name, _ in self.SAFETY_CHECKS},
         }
 
-        logger.info("Enhanced SafetyGuard initialized with advanced risk management.")
+        logger.info("ON1Builder SafetyGuard initialized with advanced risk management.")
 
     @property
     def is_circuit_broken(self) -> bool:
@@ -101,7 +101,7 @@ class SafetyGuard:
 
     async def check_transaction(self, tx_params: TxParams) -> Tuple[bool, str]:
         """
-        Enhanced comprehensive safety checks with adaptive risk management.
+        ON1Builder comprehensive safety checks with adaptive risk management.
         """
         self._safety_stats["total_checks"] += 1
 
@@ -129,10 +129,10 @@ class SafetyGuard:
                 return False, f"Safety check error: {check_name}"
 
         self._safety_stats["passed_checks"] += 1
-        return True, "All enhanced safety checks passed."
+        return True, "All ON1Builder safety checks passed."
 
     async def _check_balance(self, tx_params: TxParams) -> Tuple[bool, str]:
-        """Enhanced balance check with tier-aware requirements."""
+        """ON1Builder balance check with tier-aware requirements."""
         try:
             tx_value = tx_params.get("value", 0)
             from_address = tx_params.get("from")
@@ -187,7 +187,7 @@ class SafetyGuard:
             return self._settings.min_wallet_balance
 
     async def _check_gas_price(self, tx_params: TxParams) -> Tuple[bool, str]:
-        """Enhanced gas price validation with market awareness."""
+        """ON1Builder gas price validation with market awareness."""
         gas_price_wei = tx_params.get("gasPrice")
         if gas_price_wei is None:
             return True, "Gas price not specified, will be set by web3."
@@ -245,7 +245,7 @@ class SafetyGuard:
         return True, "Gas price is within accepted limits."
 
     async def _check_gas_limit(self, tx_params: TxParams) -> Tuple[bool, str]:
-        """Enhanced gas limit validation with transaction type awareness."""
+        """ON1Builder gas limit validation with transaction type awareness."""
         gas_limit = tx_params.get("gas")
         if gas_limit is None:
             return True, "Gas limit not specified, will be estimated."
@@ -267,7 +267,7 @@ class SafetyGuard:
         return True, "Gas limit is reasonable for transaction type."
 
     async def _check_duplicate_tx(self, tx_params: TxParams) -> Tuple[bool, str]:
-        """Enhanced duplicate transaction detection."""
+        """ON1Builder duplicate transaction detection."""
         self._clear_stale_signatures()
 
         tx_signature = (
@@ -400,7 +400,7 @@ class SafetyGuard:
             self._last_clear_time = time.time()
 
     async def trip_circuit_breaker(self, reason: str):
-        """Enhanced circuit breaker with automatic reset scheduling."""
+        """ON1Builder circuit breaker with automatic reset scheduling."""
         if not self._circuit_broken:
             self._circuit_broken = True
             self._circuit_break_reason = reason

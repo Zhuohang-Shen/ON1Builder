@@ -110,8 +110,8 @@ async def test_profit_calculator_tracks_net_profit_and_strategy_intent(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_strategy_executor_respects_balance_tiers_and_enhances_opportunities(monkeypatch, tmp_path):
-    """Validate strategy selection honors balance tiers and enhances opportunities with limits."""
+async def test_strategy_executor_respects_balance_tiers_and_ON1Builders_opportunities(monkeypatch, tmp_path):
+    """Validate strategy selection honors balance tiers and ON1Builders opportunities with limits."""
     balance_summary = {
         "balance": 2.0,
         "balance_tier": "medium",
@@ -134,11 +134,11 @@ async def test_strategy_executor_respects_balance_tiers_and_enhances_opportuniti
     assert chosen == "front_run"
     assert strategy_func is not None
 
-    enhanced = await executor._enhance_opportunity_with_balance(opportunity)
-    assert enhanced["investment_amount"] == 1.0  # capped to max_investment
-    assert enhanced["amount_limited"] is True
-    assert enhanced["min_profit_threshold"] == balance_summary["profit_threshold"]
-    assert "optimal_gas_price" in enhanced and enhanced["gas_viable"] is True
+    ON1Builder = await executor._ON1Builder_opportunity_with_balance(opportunity)
+    assert ON1Builder["investment_amount"] == 1.0  # capped to max_investment
+    assert ON1Builder["amount_limited"] is True
+    assert ON1Builder["min_profit_threshold"] == balance_summary["profit_threshold"]
+    assert "optimal_gas_price" in ON1Builder and ON1Builder["gas_viable"] is True
 
 
 def test_strategy_executor_updates_weights_with_context():

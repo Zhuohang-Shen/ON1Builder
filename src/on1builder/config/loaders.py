@@ -109,7 +109,7 @@ class _EnvSettings(BaseSettings):
     connection_retry_count: int = 5
     connection_retry_delay: float = 5.0
 
-    # Enhanced arbitrage settings
+    # ON1Builder arbitrage settings
     arbitrage_scan_interval: int = 15
 
     # Performance monitoring

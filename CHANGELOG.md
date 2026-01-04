@@ -67,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ignition launcher displays v2.2.0; pyproject dev/test extras modernized for current toolchain.
 
 ### Planned
-- Enhanced strategy algorithms
+- ON1Builder strategy algorithms
 - Additional DEX integrations
 - Performance optimizations
 - Extended test coverage

@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 class TxPoolScanner:
-    """Enhanced transaction pool scanner with sophisticated MEV opportunity detection."""
+    """ON1Builder transaction pool scanner with sophisticated MEV opportunity detection."""
 
     # MEV pattern detection
     MEV_PATTERNS = {
@@ -56,13 +56,13 @@ class TxPoolScanner:
         self._processed_tx_count = 0
         self._opportunity_count = 0
 
-        # Enhanced caching with size management
+        # ON1Builder caching with size management
         self._tx_analysis_cache: Dict[str, Dict] = {}
         self._opportunity_cache: Dict[str, Dict] = {}
         self._cache_access_times: Dict[str, datetime] = {}
 
         logger.info(
-            f"Enhanced TxPoolScanner initialized. Monitoring {len(self._monitored_addresses)} addresses."
+            f"ON1Builder TxPoolScanner initialized. Monitoring {len(self._monitored_addresses)} addresses."
         )
 
     def _build_dex_router_mapping(self) -> Dict[str, str]:
@@ -135,7 +135,7 @@ class TxPoolScanner:
             return
 
         self._is_running = True
-        logger.info("Starting Enhanced TxPoolScanner to monitor pending transactions...")
+        logger.info("Starting ON1Builder TxPoolScanner to monitor pending transactions...")
         self._scan_task = asyncio.create_task(self._subscribe_to_pending_transactions())
 
     async def stop(self):
@@ -154,7 +154,7 @@ class TxPoolScanner:
     async def _subscribe_to_pending_transactions(self):
         """
         Establishes a WebSocket subscription to new pending transactions and
-        processes them in a continuous loop with enhanced analysis.
+        processes them in a continuous loop with ON1Builder analysis.
         """
         chain_id = await self._web3.eth.chain_id
         # settings may store URLs keyed by either int or string chain ids; try both
@@ -250,7 +250,7 @@ class TxPoolScanner:
                 continue
 
     async def _process_tx_hash(self, tx_hash: str):
-        """Enhanced transaction processing with comprehensive MEV analysis."""
+        """ON1Builder transaction processing with comprehensive MEV analysis."""
         try:
             # Check cache first
             if tx_hash in self._tx_analysis_cache:
@@ -323,7 +323,7 @@ class TxPoolScanner:
         return analysis
 
     def _is_relevant_for_mev(self, analysis: Dict[str, Any]) -> bool:
-        """Enhanced relevance check for MEV opportunities."""
+        """ON1Builder relevance check for MEV opportunities."""
         # Check if transaction targets monitored addresses
         to_address = analysis.get("to", "").lower() if analysis.get("to") else ""
         if to_address in self._monitored_addresses:

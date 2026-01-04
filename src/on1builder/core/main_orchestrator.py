@@ -28,7 +28,7 @@ class MainOrchestrator:
     """
     The main orchestrator for the ON1Builder application. It initializes,
     starts, and gracefully shuts down all components and chain workers.
-    Enhanced with balance management, cross-chain coordination, and advanced monitoring.
+    ON1Builder with balance management, cross-chain coordination, and advanced monitoring.
     """
 
     def __init__(self):

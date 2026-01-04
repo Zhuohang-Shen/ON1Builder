@@ -49,10 +49,10 @@ def _database_value(name: str):
 
 
 async def check_comprehensive_status():
-    """Enhanced async helper to perform comprehensive status checks."""
+    """ON1Builder async helper to perform comprehensive status checks."""
 
     # Create main status table
-    table = Table(title="ON1Builder Enhanced System Status")
+    table = Table(title="ON1Builder ON1Builder System Status")
     table.add_column("Component", justify="right", style="cyan", no_wrap=True)
     table.add_column("Status", style="green")
     table.add_column("Details", justify="left", style="magenta")
@@ -251,7 +251,7 @@ async def _show_strategy_configuration():
 @app.command(name="check")
 def status_command():
     """
-    Comprehensive system status check with enhanced reporting.
+    Comprehensive system status check with ON1Builder reporting.
     """
     console.print("[bold blue]Running comprehensive system diagnostics...[/bold blue]")
     try:

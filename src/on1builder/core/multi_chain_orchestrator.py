@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 
 class MultiChainOrchestrator:
-    """Enhanced multi-chain orchestrator with balance-aware arbitrage and advanced opportunity detection."""
+    """ON1Builder multi-chain orchestrator with balance-aware arbitrage and advanced opportunity detection."""
 
     def __init__(self, workers: List[ChainWorker]):
         if len(workers) < 2:
@@ -36,7 +36,7 @@ class MultiChainOrchestrator:
         }
 
         logger.info(
-            f"Enhanced MultiChainOrchestrator initialized for chains: {list(self.workers.keys())}"
+            f"ON1Builder MultiChainOrchestrator initialized for chains: {list(self.workers.keys())}"
         )
 
     async def start(self):
@@ -53,7 +53,7 @@ class MultiChainOrchestrator:
         logger.info("Balance managers initialized for all chains")
 
         self.is_running = True
-        logger.info("Starting Enhanced Multi-Chain Orchestrator...")
+        logger.info("Starting ON1Builder Multi-Chain Orchestrator...")
         self._tasks.extend(
             [
                 asyncio.create_task(self._monitor_cross_chain_opportunities()),
@@ -77,7 +77,7 @@ class MultiChainOrchestrator:
         logger.info("Multi-chain orchestration stopped.")
 
     async def _monitor_cross_chain_opportunities(self):
-        """Enhanced cross-chain opportunity monitor with balance awareness."""
+        """ON1Builder cross-chain opportunity monitor with balance awareness."""
         while self.is_running:
             try:
                 opportunities = await self._find_cross_chain_arbitrage()
@@ -115,7 +115,7 @@ class MultiChainOrchestrator:
         self._arbitrage_cooldowns[token_symbol] = asyncio.get_running_loop().time()
 
     async def _find_cross_chain_arbitrage(self) -> List[Dict]:
-        """Enhanced arbitrage detection with better filtering and analysis."""
+        """ON1Builder arbitrage detection with better filtering and analysis."""
         opportunities = []
         common_tokens = self._get_common_tokens()
 
@@ -169,8 +169,8 @@ class MultiChainOrchestrator:
         return {symbol for symbol, count in counts.items() if count >= 2}
 
     async def execute_cross_chain_arbitrage(self, opportunity: Dict):
-        """Enhanced cross-chain arbitrage execution with balance awareness and profit tracking."""
-        logger.info(f"Executing enhanced cross-chain arbitrage for {opportunity['token_symbol']}")
+        """ON1Builder cross-chain arbitrage execution with balance awareness and profit tracking."""
+        logger.info(f"Executing ON1Builder cross-chain arbitrage for {opportunity['token_symbol']}")
 
         buy_chain = opportunity["buy_on_chain"]
         sell_chain = opportunity["sell_on_chain"]

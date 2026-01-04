@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 
 class MarketDataFeed:
-    """Enhanced market data feed with volatility analysis, trend detection, and market sentiment."""
+    """ON1Builder market data feed with volatility analysis, trend detection, and market sentiment."""
 
     def __init__(self, web3: Any):
         self._web3 = web3
@@ -38,7 +38,7 @@ class MarketDataFeed:
         self._is_running = False
         self._update_task: Optional[asyncio.Task] = None
         self._analysis_task: Optional[asyncio.Task] = None
-        logger.info("Enhanced MarketDataFeed initialized.")
+        logger.info("ON1Builder MarketDataFeed initialized.")
 
     async def start(self):
         if self._is_running:
@@ -46,7 +46,7 @@ class MarketDataFeed:
             return
 
         self._is_running = True
-        logger.info("Starting Enhanced MarketDataFeed background updates...")
+        logger.info("Starting ON1Builder MarketDataFeed background updates...")
         self._update_task = asyncio.create_task(self._update_loop())
         self._analysis_task = asyncio.create_task(self._analysis_loop())
 
@@ -65,7 +65,7 @@ class MarketDataFeed:
                     pass
 
         await self._api_manager.close()
-        logger.info("Enhanced MarketDataFeed stopped.")
+        logger.info("ON1Builder MarketDataFeed stopped.")
 
     async def get_price(self, token_symbol: str) -> Optional[Decimal]:
         """Get current price with automatic caching and history tracking."""

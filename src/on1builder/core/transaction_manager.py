@@ -35,7 +35,7 @@ logger = get_logger(__name__)
 
 class TransactionManager:
     """
-    Enhanced transaction manager with balance awareness, flashloan support,
+    ON1Builder transaction manager with balance awareness, flashloan support,
     and comprehensive profit tracking.
     """
 
@@ -69,7 +69,7 @@ class TransactionManager:
             "total_gas_spent_eth": 0.0,
         }
 
-        logger.info(f"Enhanced TransactionManager initialized for chain ID {chain_id}.")
+        logger.info(f"ON1Builder TransactionManager initialized for chain ID {chain_id}.")
 
     async def initialize(self):
         """Initialize the transaction manager and its components."""
@@ -88,7 +88,7 @@ class TransactionManager:
         gas_limit: Optional[int] = None,
         gas_price: Optional[Wei] = None,
     ) -> TxParams:
-        """Enhanced transaction building with dynamic gas optimization."""
+        """ON1Builder transaction building with dynamic gas optimization."""
 
         nonce = await self._nonce_manager.get_next_nonce()
 
@@ -134,7 +134,7 @@ class TransactionManager:
         return tx_params
 
     async def _sign_and_send(self, tx_params: TxParams) -> str:
-        """Enhanced transaction signing with comprehensive safety checks."""
+        """ON1Builder transaction signing with comprehensive safety checks."""
 
         # Safety check with balance awareness
         is_safe, reason = await self._safety_guard.check_transaction(tx_params)
@@ -186,7 +186,7 @@ class TransactionManager:
         strategy_name: str,
         expected_profit: Optional[Decimal] = None,
     ) -> Dict[str, Any]:
-        """Enhanced execution with profit tracking and comprehensive logging."""
+        """ON1Builder execution with profit tracking and comprehensive logging."""
 
         start_time = time.monotonic()
         tx_hash = ""
@@ -305,7 +305,7 @@ class TransactionManager:
             }
 
     async def _get_dex_contract(self, dex_name: str):
-        """Get DEX contract with enhanced error handling."""
+        """Get DEX contract with ON1Builder error handling."""
         abi_name = f"{dex_name.lower()}_abi"
         abi = self._abi_registry.get_abi(abi_name)
         if not abi:
@@ -335,7 +335,7 @@ class TransactionManager:
         return self._web3.eth.contract(address=address, abi=abi)
 
     async def _get_swap_path(self, opportunity: Dict[str, Any]) -> List[str]:
-        """Enhanced path resolution with validation."""
+        """ON1Builder path resolution with validation."""
         path = opportunity.get("path")
         if not path or len(path) < 2:
             raise StrategyExecutionError("Invalid or missing swap path in opportunity.")
@@ -374,7 +374,7 @@ class TransactionManager:
         return amount_in, amount_out_min
 
     async def execute_swap(self, opportunity: Dict[str, Any], strategy_name: str) -> Dict[str, Any]:
-        """Enhanced swap execution with comprehensive validation."""
+        """ON1Builder swap execution with comprehensive validation."""
 
         # Validate opportunity has required fields
         required_fields = ["dex", "path", "amount_in"]
@@ -445,7 +445,7 @@ class TransactionManager:
         )
 
     async def execute_arbitrage(self, opportunity: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute arbitrage opportunity with enhanced validation."""
+        """Execute arbitrage opportunity with ON1Builder validation."""
         logger.info(f"Executing arbitrage opportunity: {opportunity}")
 
         # Validate arbitrage opportunity
@@ -614,7 +614,7 @@ class TransactionManager:
         }
 
     async def execute_flashloan_arbitrage(self, opportunity: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute flashloan-based arbitrage with enhanced safety."""
+        """Execute flashloan-based arbitrage with ON1Builder safety."""
         logger.info("Executing flashloan arbitrage strategy")
 
         if not settings.flashloan_enabled:
@@ -689,7 +689,7 @@ class TransactionManager:
         return await self.execute_flashloan(flashloan_opportunity)
 
     async def execute_flashloan(self, opportunity: Dict[str, Any]) -> Dict[str, Any]:
-        """Enhanced flashloan execution with comprehensive validation."""
+        """ON1Builder flashloan execution with comprehensive validation."""
         strategy_name = "flashloan"
         logger.info(f"Executing flashloan strategy with opportunity: {opportunity}")
 
