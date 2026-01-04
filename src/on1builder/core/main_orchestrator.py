@@ -19,6 +19,7 @@ from on1builder.utils.web3_factory import create_web3_instance
 from on1builder.utils.error_recovery import get_error_recovery_manager
 from on1builder.utils.constants import PERFORMANCE_MONITORING_INTERVAL
 from on1builder.persistence.db_interface import DatabaseInterface
+from on1builder.integrations.external_apis import ExternalAPIManager
 
 logger = get_logger(__name__)
 
@@ -267,6 +268,12 @@ class MainOrchestrator:
         logger.info("Closing notification service session...")
         if self._notification_service:
             await self._notification_service.close()
+
+        logger.info("Closing ExternalAPIManager session...")
+        try:
+            await ExternalAPIManager().close()
+        except Exception as exc:
+            logger.debug("ExternalAPIManager close raised: %s", exc, exc_info=True)
 
         logger.info("ON1Builder has been shut down gracefully.")
 

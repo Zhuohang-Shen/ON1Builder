@@ -23,6 +23,10 @@ class MarketDataFeed:
     def __init__(self, web3: Any):
         self._web3 = web3
         self._api_manager = ExternalAPIManager()
+        # Only price a small, well-known universe to avoid log spam and flaky lookups
+        self._allowed_symbols: Set[str] = set(self._api_manager.WELL_KNOWN_TOKENS).union(
+            {"ETH", "WETH", "WBTC", "BTC", "DAI"}
+        )
         self._price_cache: TTLCache = TTLCache(maxsize=1000, ttl=settings.heartbeat_interval / 2)
         self._price_history: Dict[str, List[Tuple[datetime, Decimal]]] = {}
         self._volatility_cache: TTLCache = TTLCache(
@@ -65,7 +69,16 @@ class MarketDataFeed:
 
     async def get_price(self, token_symbol: str) -> Optional[Decimal]:
         """Get current price with automatic caching and history tracking."""
+        if not token_symbol.isascii():
+            logger.debug("Skipping non-ASCII token symbol: %s", token_symbol)
+            return None
+
         symbol_upper = token_symbol.upper()
+
+        # Limit to well-known tokens to avoid hammering APIs and flooding logs
+        if symbol_upper not in self._allowed_symbols:
+            logger.debug("Token %s not in allowed pricing universe, skipping.", symbol_upper)
+            return None
 
         # Check if token is blacklisted due to repeated failures
         if symbol_upper in self._failed_tokens:
@@ -106,9 +119,8 @@ class MarketDataFeed:
                         f"Token {symbol_upper} blacklisted after 5 consecutive price lookup failures."
                     )
                     del self._token_failure_count[symbol_upper]
-                elif self._token_failure_count[symbol_upper] == 1:
-                    # Only log warning on first failure to reduce spam
-                    logger.warning(f"Could not retrieve price for {token_symbol}.")
+                else:
+                    logger.debug(f"Could not retrieve price for {symbol_upper}; attempt {self._token_failure_count[symbol_upper]}.")
 
                 return None
 
@@ -124,8 +136,8 @@ class MarketDataFeed:
                     f"Token {symbol_upper} blacklisted after 5 consecutive price lookup failures."
                 )
                 del self._token_failure_count[symbol_upper]
-            elif self._token_failure_count[symbol_upper] == 1:
-                logger.warning(f"Error retrieving price for {token_symbol}: {e}")
+            else:
+                logger.debug(f"Error retrieving price for {symbol_upper}: {e}; attempt {self._token_failure_count[symbol_upper]}.")
 
             return None
 
@@ -270,6 +282,11 @@ class MarketDataFeed:
                 for chain_id in settings.chains:
                     tokens_on_chain = registry.get_monitored_tokens(chain_id)
                     all_symbols_to_update.update(tokens_on_chain.keys())
+
+                # Restrict to allowed symbols to avoid log storms
+                all_symbols_to_update = {
+                    symbol for symbol in all_symbols_to_update if symbol.upper() in self._allowed_symbols
+                }
 
                 if all_symbols_to_update:
                     logger.debug(

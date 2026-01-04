@@ -157,11 +157,24 @@ class TxPoolScanner:
         processes them in a continuous loop with enhanced analysis.
         """
         chain_id = await self._web3.eth.chain_id
-        ws_url = settings.websocket_urls.get(chain_id)
+        # settings may store URLs keyed by either int or string chain ids; try both
+        ws_url = settings.websocket_urls.get(chain_id) or settings.websocket_urls.get(str(chain_id))
+        rpc_url = settings.rpc_urls.get(chain_id) or settings.rpc_urls.get(str(chain_id))
+
         if not ws_url:
             logger.error(
                 f"No WebSocket URL configured for chain {chain_id}. TxPoolScanner cannot run."
             )
+            self._is_running = False
+            return
+
+        # Public endpoints often do not support pending tx subscriptions reliably; disable to avoid noise
+        if "public" in ws_url.lower() or (rpc_url and "public" in rpc_url.lower()):
+            logger.warning(
+                f"[Chain {chain_id}] Public RPC/WebSocket detected ({ws_url}). "
+                "Skipping txpool scanner to avoid unstable subscriptions."
+            )
+            self._is_running = False
             return
 
         while self._is_running:

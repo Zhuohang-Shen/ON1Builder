@@ -21,6 +21,22 @@ except ImportError:
 _loggers: Dict[str, logging.Logger] = {}
 
 
+def _configure_io_encoding() -> None:
+    """
+    Ensure stdout/stderr use UTF-8 so rich/logging can safely emit non-ASCII
+    characters on Windows consoles.
+    """
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                # Best-effort only; continue with current encoding.
+                pass
+
+
 class JsonFormatter(logging.Formatter):
     """Formats log records as JSON strings for structured logging."""
 
@@ -65,6 +81,9 @@ def setup_logging(force_setup: bool = False) -> None:
 
     use_json = os.environ.get("LOG_FORMAT", "console").lower() == "json"
 
+    # Ensure console streams are UTF-8 capable before attaching handlers
+    _configure_io_encoding()
+
     root_logger = logging.getLogger("on1builder")
     root_logger.setLevel(getattr(logging, log_level, logging.INFO))
 
@@ -104,7 +123,7 @@ def setup_logging(force_setup: bool = False) -> None:
             log_dir.mkdir(exist_ok=True)
             log_file = log_dir / "on1builder.log"
 
-            file_handler = logging.FileHandler(log_file, mode="a")
+            file_handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
             file_formatter = logging.Formatter(
                 "%(asctime)s [%(name)s:%(levelname)s] - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
             )

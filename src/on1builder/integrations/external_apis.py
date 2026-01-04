@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, Dict, Optional, List, Set
-from datetime import datetime
-from dataclasses import dataclass, field
 import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from decimal import Decimal
+from typing import Any, Dict, List, Optional, Set
 
 import aiohttp
 from cachetools import TTLCache
 
 from on1builder.config.loaders import settings
+from on1builder.utils.web3_factory import Web3ConnectionFactory
 from on1builder.utils.custom_exceptions import APICallError
 from on1builder.utils.logging_config import get_logger
 from on1builder.utils.path_helpers import get_resource_path
@@ -153,10 +155,14 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         self._all_tokens_loaded = False  # Track if we've loaded all tokens yet
         self._all_tokens_load_time = 0  # Timestamp of last full token load
         self._failed_tokens: Set[str] = set()
+        self._onchain_web3: Optional[Any] = None
+        self._primary_chain_id: int = settings.chains[0] if getattr(settings, "chains", None) else 1
         self._background_tasks: Set[asyncio.Task] = set()
+        self._init_lock = asyncio.Lock()
         self._initialized = False
         self._data_gathering_active = False
         self._health_check_interval = 300  # 5 minutes
+        self._closed = False
         self._instance_initialized = True
 
         logger.debug("ExternalAPIManager singleton instance created")
@@ -165,60 +171,44 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         if self._initialized:
             logger.debug("ExternalAPIManager already initialized, skipping...")
             return
-        logger.info("Initializing ExternalAPIManager...")
-        self._providers = self._build_providers()
-        self._session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=15),
-            connector=aiohttp.TCPConnector(limit=100, limit_per_host=30),
-        )
-        await self._load_token_mappings_async()
-        self._start_background_tasks()
-        self._initialized = True
-        logger.debug(
-            f"ExternalAPIManager initialized with {len(self._providers)} providers and {len(self._token_mappings)} token mappings."
-        )
+
+        async with self._init_lock:
+            if self._initialized:
+                return
+
+            logger.info("Initializing ExternalAPIManager...")
+            self._providers = self._build_providers()
+            self._session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=15),
+                connector=aiohttp.TCPConnector(limit=100, limit_per_host=30),
+            )
+            await self._load_token_mappings_async()
+            self._start_background_tasks()
+            self._initialized = True
+            self._closed = False
+            logger.debug(
+                f"ExternalAPIManager initialized with {len(self._providers)} providers and {len(self._token_mappings)} token mappings."
+            )
 
     def _build_providers(self) -> Dict[str, Provider]:
         providers = {}
-        api_settings = settings.api
-        if api_settings.coingecko_api_key:
-            providers["coingecko"] = Provider(
-                name="coingecko",
-                base_url="https://api.coingecko.com/api/v3",
-                rate_limit=40,
-                api_key=api_settings.coingecko_api_key,
-            )
+        # Coingecko allows keyless access for basic endpoints
+        providers["coingecko"] = Provider(
+            name="coingecko",
+            base_url="https://api.coingecko.com/api/v3",
+            rate_limit=40,
+        )
         providers["binance"] = Provider(
             name="binance",
             base_url="https://api.binance.com/api/v3",
             rate_limit=20,
         )
-        if api_settings.coinmarketcap_api_key:
-            providers["coinmarketcap"] = Provider(
-                name="coinmarketcap",
-                base_url="https://pro-api.coinmarketcap.com/v1",
-                rate_limit=10,
-                api_key=api_settings.coinmarketcap_api_key,
-            )
-        if api_settings.cryptocompare_api_key:
-            providers["cryptocompare"] = Provider(
-                name="cryptocompare",
-                base_url="https://min-api.cryptocompare.com/data",
-                rate_limit=20,
-                api_key=api_settings.cryptocompare_api_key,
-            )
-        if api_settings.etherscan_api_key:
+        if getattr(settings.api, "etherscan_api_key", None):
             providers["etherscan"] = Provider(
                 name="etherscan",
                 base_url="https://api.etherscan.io/api",
                 rate_limit=5,
-                api_key=api_settings.etherscan_api_key,
-            )
-        if api_settings.infura_project_id:
-            providers["infura"] = Provider(
-                name="infura",
-                base_url=f"https://mainnet.infura.io/v3/{api_settings.infura_project_id}",
-                rate_limit=10,
+                api_key=settings.api.etherscan_api_key,
             )
         return providers
 
@@ -377,6 +367,10 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             if not symbol or not name:
                 return None
 
+            if not symbol.isascii():
+                logger.debug(f"Skipping non-ASCII token symbol: {symbol}")
+                return None
+
             # Skip tokens with problematic symbols
             if any(char in symbol for char in ["$", "#", "@", "&", "%", " ", "\t", "\n"]):
                 logger.debug(f"Skipping token with problematic symbol: {symbol}")
@@ -387,7 +381,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
 
             # Extract API IDs with validation
             api_ids = {}
-            for api_name in ["coingecko", "coinmarketcap", "binance", "etherscan", "infura"]:
+            for api_name in ["coingecko", "binance", "etherscan"]:
                 api_id_key = f"{api_name}_id"
                 if api_id_key in token_data and token_data[api_id_key]:
                     api_ids[api_name] = str(token_data[api_id_key]).strip()
@@ -418,7 +412,21 @@ class ExternalAPIManager(metaclass=SingletonMeta):
 
     async def get_price(self, token_symbol: str) -> Optional[float]:
         await self._initialize()
+        if not token_symbol.isascii():
+            logger.debug("Skipping non-ASCII token symbol: %s", token_symbol)
+            return None
+
         token_symbol_upper = token_symbol.upper()
+
+        if token_symbol_upper not in self.WELL_KNOWN_TOKENS and token_symbol_upper not in {
+            "ETH",
+            "WETH",
+            "WBTC",
+            "BTC",
+            "DAI",
+        }:
+            logger.debug("Token %s not in well-known universe, skipping price lookup", token_symbol_upper)
+            return None
 
         # Check cache first
         if token_symbol_upper in self._price_cache:
@@ -428,6 +436,12 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         if token_symbol_upper in self._failed_tokens:
             logger.debug(f"Skipping failed token: {token_symbol}")
             return None
+
+        # First, try on-chain pricing via DEX reserves (no API limits)
+        onchain_price = await self._get_onchain_price(token_symbol_upper)
+        if onchain_price is not None:
+            self._price_cache[token_symbol_upper] = onchain_price
+            return onchain_price
 
         # Get token mapping for better API targeting
         token_mapping = self._token_mappings.get(token_symbol_upper)
@@ -452,9 +466,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
 
         # Create targeted task list based on available API IDs and provider health
         tasks = []
-        healthy_providers = [
-            name for name, provider in self._providers.items() if provider.is_healthy
-        ]
+        healthy_providers = [name for name, provider in self._providers.items() if provider.is_healthy]
 
         if not token_mapping or not token_mapping.api_ids:
             # Fallback to all providers for unmapped tokens
@@ -462,14 +474,6 @@ class ExternalAPIManager(metaclass=SingletonMeta):
                 tasks.append(asyncio.create_task(self._fetch_from_coingecko(token_symbol_upper)))
             if "binance" in healthy_providers:
                 tasks.append(asyncio.create_task(self._fetch_from_binance(token_symbol_upper)))
-            if "coinmarketcap" in healthy_providers:
-                tasks.append(
-                    asyncio.create_task(self._fetch_from_coinmarketcap(token_symbol_upper))
-                )
-            if "cryptocompare" in healthy_providers:
-                tasks.append(
-                    asyncio.create_task(self._fetch_from_cryptocompare(token_symbol_upper))
-                )
         else:
             # Use specific API IDs from mapping
             if "coingecko" in token_mapping.api_ids and "coingecko" in healthy_providers:
@@ -485,22 +489,6 @@ class ExternalAPIManager(metaclass=SingletonMeta):
                     asyncio.create_task(
                         self._fetch_from_binance(
                             token_symbol_upper, token_mapping.api_ids["binance"]
-                        )
-                    )
-                )
-            if "coinmarketcap" in token_mapping.api_ids and "coinmarketcap" in healthy_providers:
-                tasks.append(
-                    asyncio.create_task(
-                        self._fetch_from_coinmarketcap(
-                            token_symbol_upper, token_mapping.api_ids["coinmarketcap"]
-                        )
-                    )
-                )
-            if "cryptocompare" in token_mapping.api_ids and "cryptocompare" in healthy_providers:
-                tasks.append(
-                    asyncio.create_task(
-                        self._fetch_from_cryptocompare(
-                            token_symbol_upper, token_mapping.api_ids["cryptocompare"]
                         )
                     )
                 )
@@ -649,70 +637,12 @@ class ExternalAPIManager(metaclass=SingletonMeta):
     async def _fetch_from_coinmarketcap(
         self, symbol: str, token_id: Optional[str] = None
     ) -> Optional[float]:
-        provider = self._providers.get("coinmarketcap")
-        if not provider or not provider.is_healthy:
-            return None
-
-        if not provider.rate_tracker.can_make_request():
-            return None
-
-        if not token_id:
-            token_mapping = self._token_mappings.get(symbol)
-            if not token_mapping or "coinmarketcap" not in token_mapping.api_ids:
-                return None
-            token_id = token_mapping.api_ids["coinmarketcap"]
-
-        url = f"{provider.base_url}/cryptocurrency/quotes/latest"
-        params = {"id": token_id, "convert": "USD"}
-        headers = {"X-CMC_PRO_API_KEY": provider.api_key}
-
-        async with provider.limiter:
-            try:
-                data = await self._make_request(url, provider.name, params=params, headers=headers)
-                provider.rate_tracker.record_request(data is not None)
-
-                if data and "data" in data and token_id in data["data"]:
-                    quote = data["data"][token_id].get("quote", {}).get("USD", {})
-                    if "price" in quote:
-                        provider.consecutive_failures = 0
-                        return float(quote["price"])
-
-                provider.consecutive_failures += 1
-                return None
-            except Exception as e:
-                provider.rate_tracker.record_request(False)
-                provider.consecutive_failures += 1
-                raise
+        return None
 
     async def _fetch_from_cryptocompare(
         self, symbol: str, token_symbol: Optional[str] = None
     ) -> Optional[float]:
-        provider = self._providers.get("cryptocompare")
-        if not provider or not provider.is_healthy:
-            return None
-
-        if not provider.rate_tracker.can_make_request():
-            return None
-
-        url = f"{provider.base_url}/price"
-        params = {"fsym": token_symbol or symbol, "tsyms": "USD"}
-        headers = {"Authorization": f"Apikey {provider.api_key}"} if provider.api_key else {}
-
-        async with provider.limiter:
-            try:
-                data = await self._make_request(url, provider.name, params=params, headers=headers)
-                provider.rate_tracker.record_request(data is not None)
-
-                if data and "USD" in data:
-                    provider.consecutive_failures = 0
-                    return float(data["USD"])
-
-                provider.consecutive_failures += 1
-                return None
-            except Exception as e:
-                provider.rate_tracker.record_request(False)
-                provider.consecutive_failures += 1
-                raise
+        return None
 
     async def _fetch_from_etherscan(
         self, symbol: str, token_id: Optional[str] = None
@@ -778,6 +708,9 @@ class ExternalAPIManager(metaclass=SingletonMeta):
 
     async def close(self):
         """Clean up resources and cancel background tasks."""
+        self._closed = True
+        self._initialized = False
+
         # Cancel all background tasks
         for task in self._background_tasks.copy():
             if not task.done():
@@ -793,6 +726,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         if self._session and not self._session.closed:
             await self._session.close()
             logger.info("ExternalAPIManager session closed.")
+        self._session = None
 
     def get_provider_health_status(self) -> Dict[str, Dict[str, Any]]:
         """Get health status of all providers."""
@@ -924,10 +858,14 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         await self._initialize()
 
         try:
+            # Prefer on-chain estimation: price * circulating supply
+            price = await self.get_price(token_symbol)
+            supply = await self._get_onchain_supply(token_symbol)
+            if price is not None and supply is not None:
+                return float(Decimal(str(price)) * Decimal(str(supply)))
+
             if "coingecko" in self._providers:
                 return await self._get_coingecko_market_cap(token_symbol)
-            elif "coinmarketcap" in self._providers:
-                return await self._get_coinmarketcap_market_cap(token_symbol)
 
             return None
 
@@ -982,30 +920,8 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_coinmarketcap_market_cap(self, token_symbol: str) -> Optional[float]:
-        """Fetch market cap from CoinMarketCap if configured."""
-        try:
-            provider = self._providers.get("coinmarketcap")
-            if not provider or not provider.api_key or not provider.is_healthy:
-                return None
-
-            url = f"{provider.base_url}/cryptocurrency/quotes/latest"
-            params = {"symbol": token_symbol.upper()}
-            headers = {"X-CMC_PRO_API_KEY": provider.api_key}
-            async with provider.limiter:
-                data = await self._make_request(url, provider.name, params=params, headers=headers)
-                provider.rate_tracker.record_request(data is not None)
-                if data and "data" in data:
-                    entry = data["data"].get(token_symbol.upper(), [{}])[0] if isinstance(data["data"].get(token_symbol.upper(), {}), list) else data["data"].get(token_symbol.upper(), {})
-                    quote = entry.get("quote", {}).get("USD", {})
-                    market_cap = quote.get("market_cap")
-                    if market_cap:
-                        provider.consecutive_failures = 0
-                        return float(market_cap)
-                provider.consecutive_failures += 1
-            return None
-        except Exception as e:
-            logger.debug(f"CoinMarketCap market cap fetch failed for {token_symbol}: {e}")
-            return None
+        """CoinMarketCap is no longer used (API key required); keep stub for compatibility."""
+        return None
 
     async def _get_coingecko_sentiment(self, token_symbol: str) -> Optional[float]:
         """Get sentiment from CoinGecko API."""
@@ -1033,6 +949,214 @@ class ExternalAPIManager(metaclass=SingletonMeta):
 
         except Exception as e:
             logger.debug(f"Error getting CoinGecko sentiment: {e}")
+            return None
+
+    async def _get_coingecko_volume(self, token_symbol: str) -> Optional[float]:
+        """Fetch 24h USD volume via CoinGecko public endpoint."""
+        try:
+            coin_id = self._get_coingecko_id(token_symbol)
+            if not coin_id:
+                return None
+
+            provider = self._providers.get("coingecko")
+            if not provider:
+                return None
+
+            async with provider.limiter:
+                url = f"{provider.base_url}/coins/{coin_id}"
+                params = {"localization": "false", "tickers": "false", "market_data": "true"}
+                async with self._session.get(url, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        market_data = data.get("market_data", {})
+                        volume = market_data.get("total_volume", {}).get("usd")
+                        if volume is not None:
+                            return float(volume)
+            return None
+        except Exception as e:
+            logger.debug(f"Error getting CoinGecko volume for {token_symbol}: {e}")
+            return None
+
+    async def _get_onchain_price(self, token_symbol: str) -> Optional[float]:
+        """Derive USD price from on-chain Uniswap V2 reserves (no external API)."""
+        try:
+            web3 = await self._get_onchain_web3()
+            if not web3:
+                return None
+
+            from on1builder.integrations.abi_registry import ABIRegistry
+
+            registry = ABIRegistry()
+            chain_id = self._primary_chain_id
+            target_symbol = "WETH" if token_symbol.upper() == "ETH" else token_symbol
+            token_address = registry.get_token_address(target_symbol, chain_id)
+            stable_address = registry.get_token_address("USDC", chain_id) or registry.get_token_address("DAI", chain_id)
+            if not token_address or not stable_address:
+                return None
+
+            pair_address = await self._get_uniswap_v2_pair(web3, token_address, stable_address)
+            if not pair_address:
+                return None
+
+            reserves = await self._get_pair_reserves(web3, pair_address)
+            if not reserves:
+                return None
+
+            reserve0, reserve1 = reserves
+            # Determine token position
+            token0 = await self._get_pair_token(web3, pair_address, 0)
+            token1 = await self._get_pair_token(web3, pair_address, 1)
+            if not token0 or not token1:
+                return None
+
+            if token0.lower() == token_address.lower():
+                price = Decimal(reserve1) / Decimal(reserve0)
+            else:
+                price = Decimal(reserve0) / Decimal(reserve1)
+            return float(price)
+        except Exception as e:
+            logger.debug(f"On-chain price fetch failed for {token_symbol}: {e}")
+            return None
+
+    async def _get_onchain_supply(self, token_symbol: str) -> Optional[float]:
+        """Get circulating supply from on-chain totalSupply (approx)."""
+        try:
+            web3 = await self._get_onchain_web3()
+            if not web3:
+                return None
+
+            from on1builder.integrations.abi_registry import ABIRegistry
+
+            registry = ABIRegistry()
+            chain_id = self._primary_chain_id
+            token_address = registry.get_token_address(token_symbol, chain_id)
+            if not token_address:
+                return None
+
+            erc20_abi = [
+                {"name": "totalSupply", "outputs": [{"type": "uint256"}], "inputs": [], "stateMutability": "view", "type": "function"},
+                {"name": "decimals", "outputs": [{"type": "uint8"}], "inputs": [], "stateMutability": "view", "type": "function"},
+            ]
+            contract = web3.eth.contract(address=web3.to_checksum_address(token_address), abi=erc20_abi)
+            total = await contract.functions.totalSupply().call()
+            decimals = await contract.functions.decimals().call()
+            return float(Decimal(total) / Decimal(10**decimals))
+        except Exception as e:
+            logger.debug(f"On-chain supply fetch failed for {token_symbol}: {e}")
+            return None
+
+    async def _get_onchain_web3(self):
+        """Lazy-create an on-chain AsyncWeb3 connection for public RPC usage."""
+        if self._onchain_web3:
+            return self._onchain_web3
+        try:
+            self._onchain_web3 = await Web3ConnectionFactory.create_connection(self._primary_chain_id)
+            return self._onchain_web3
+        except Exception as e:
+            logger.debug(f"Failed to create on-chain web3 connection: {e}")
+            return None
+
+    async def _get_uniswap_v2_pair(self, web3, token_a: str, token_b: str) -> Optional[str]:
+        """Fetch the pair address from Uniswap V2 factory."""
+        try:
+            factory_address = "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"  # Uniswap V2 mainnet
+            factory_abi = [
+                {
+                    "inputs": [{"internalType": "address", "name": "tokenA", "type": "address"}, {"internalType": "address", "name": "tokenB", "type": "address"}],
+                    "name": "getPair",
+                    "outputs": [{"internalType": "address", "name": "pair", "type": "address"}],
+                    "stateMutability": "view",
+                    "type": "function",
+                }
+            ]
+            factory = web3.eth.contract(address=web3.to_checksum_address(factory_address), abi=factory_abi)
+            pair = await factory.functions.getPair(
+                web3.to_checksum_address(token_a), web3.to_checksum_address(token_b)
+            ).call()
+            if int(pair, 16) == 0:
+                return None
+            return pair
+        except Exception:
+            return None
+
+    async def _get_pair_reserves(self, web3, pair_address: str) -> Optional[tuple]:
+        """Get reserves from a Uniswap V2 pair."""
+        try:
+            pair_abi = [
+                {
+                    "inputs": [],
+                    "name": "getReserves",
+                    "outputs": [
+                        {"internalType": "uint112", "name": "_reserve0", "type": "uint112"},
+                        {"internalType": "uint112", "name": "_reserve1", "type": "uint112"},
+                        {"internalType": "uint32", "name": "_blockTimestampLast", "type": "uint32"},
+                    ],
+                    "stateMutability": "view",
+                    "type": "function",
+                }
+            ]
+            contract = web3.eth.contract(address=web3.to_checksum_address(pair_address), abi=pair_abi)
+            reserves = await contract.functions.getReserves().call()
+            return reserves[0], reserves[1]
+        except Exception:
+            return None
+
+    async def _get_pair_token(self, web3, pair_address: str, index: int) -> Optional[str]:
+        """Get token0 or token1 address from a Uniswap V2 pair."""
+        try:
+            fn = "token0" if index == 0 else "token1"
+            abi = [{"inputs": [], "name": fn, "outputs": [{"internalType": "address", "name": "", "type": "address"}], "stateMutability": "view", "type": "function"}]
+            contract = web3.eth.contract(address=web3.to_checksum_address(pair_address), abi=abi)
+            addr = await getattr(contract.functions, fn)().call()
+            return addr
+        except Exception:
+            return None
+
+    async def _get_coingecko_market_cap(self, token_symbol: str) -> Optional[float]:
+        """Fetch market cap using CoinGecko's public API."""
+        try:
+            coin_id = self._get_coingecko_id(token_symbol)
+            if not coin_id:
+                return None
+
+            provider = self._providers["coingecko"]
+            async with provider.limiter:
+                url = f"{provider.base_url}/coins/{coin_id}"
+                params = {"localization": "false", "tickers": "false", "market_data": "true"}
+
+                async with self._session.get(url, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        market_data = data.get("market_data", {})
+                        market_cap = market_data.get("market_cap", {}).get("usd")
+                        if market_cap:
+                            return float(market_cap)
+            return None
+        except Exception as e:
+            logger.debug(f"Error getting CoinGecko market cap for {token_symbol}: {e}")
+            return None
+
+    async def _get_coingecko_supply(self, token_symbol: str) -> Optional[float]:
+        """Fetch circulating supply from CoinGecko as a fallback for market cap."""
+        try:
+            coin_id = self._get_coingecko_id(token_symbol)
+            if not coin_id:
+                return None
+
+            provider = self._providers["coingecko"]
+            async with provider.limiter:
+                url = f"{provider.base_url}/coins/{coin_id}"
+                params = {"localization": "false", "tickers": "false", "market_data": "true"}
+                async with self._session.get(url, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        market_data = data.get("market_data", {})
+                        supply = market_data.get("circulating_supply")
+                        if supply:
+                            return float(supply)
+            return None
+        except Exception as e:
+            logger.debug(f"Error getting CoinGecko supply for {token_symbol}: {e}")
             return None
 
     async def _get_social_sentiment(self, token_symbol: str) -> Optional[float]:
@@ -1199,6 +1323,36 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             "UNI": "uniswap",
             "LINK": "chainlink",
             "AAVE": "aave",
+            "MATIC": "matic-network",
+            "POL": "matic-network",
+            "BNB": "binancecoin",
+            "SOL": "solana",
+            "ADA": "cardano",
+            "AVAX": "avalanche-2",
+            "DOT": "polkadot",
+            "TRX": "tron",
+            "ATOM": "cosmos",
+            "LTC": "litecoin",
+            "XRP": "ripple",
+            "ETC": "ethereum-classic",
+            "BCH": "bitcoin-cash",
+            "XLM": "stellar",
+            "NEAR": "near",
+            "ARB": "arbitrum",
+            "OP": "optimism",
+            "FTM": "fantom",
+            "APE": "apecoin",
+            "CRV": "curve-dao-token",
+            "COMP": "compound-governance-token",
+            "MKR": "maker",
+            "SNX": "synthetix-network-token",
+            "SUSHI": "sushi",
+            "YFI": "yearn-finance",
+            "1INCH": "1inch",
+            "BAT": "basic-attention-token",
+            "ZRX": "0x",
+            "ENJ": "enjincoin",
+            "SHIB": "shiba-inu",
         }
         return symbol_map.get(token_symbol.upper(), token_symbol.lower())
 

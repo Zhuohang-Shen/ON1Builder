@@ -93,9 +93,11 @@ async def test_get_price_skips_unhealthy_providers(monkeypatch):
     # Restore original coroutine method in case earlier tests patched it
     manager.get_price = ExternalAPIManager.get_price.__get__(manager, ExternalAPIManager)  # type: ignore[attr-defined]
     manager._initialize = AsyncMock()
+    manager._get_onchain_price = AsyncMock(return_value=None)
     # Simulate only one provider and mark unhealthy
     manager._providers = {"coingecko": SimpleNamespace(is_healthy=False)}
     manager._failed_tokens = set()
 
     price = await manager.get_price("ETH")
     assert price is None
+    manager._get_onchain_price.assert_awaited_once()

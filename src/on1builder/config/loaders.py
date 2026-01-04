@@ -42,7 +42,10 @@ class _EnvSettings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file_encoding="utf-8", case_sensitive=False, extra="allow"
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="allow",
+        env_ignore_empty=True,
     )
 
     # Core identity fields with sensible defaults to support test environments

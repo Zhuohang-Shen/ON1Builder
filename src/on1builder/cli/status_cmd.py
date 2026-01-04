@@ -15,7 +15,37 @@ from on1builder.persistence.db_interface import DatabaseInterface
 from on1builder.core.balance_manager import BalanceManager
 
 app = typer.Typer(help="Commands to check comprehensive system status and performance.")
-console = Console()
+console = Console(force_terminal=True, legacy_windows=True)
+
+
+def _api_value(name: str):
+    """Helper to safely read API keys regardless of dict/model shape."""
+    api = getattr(settings, "api", None)
+    if api is None:
+        return None
+    if isinstance(api, dict):
+        return api.get(name)
+    return getattr(api, name, None)
+
+
+def _notifications_value(name: str):
+    """Helper to safely read notification settings regardless of dict/model shape."""
+    notif = getattr(settings, "notifications", None)
+    if notif is None:
+        return None
+    if isinstance(notif, dict):
+        return notif.get(name)
+    return getattr(notif, name, None)
+
+
+def _database_value(name: str):
+    """Helper to safely read database settings regardless of dict/model shape."""
+    db = getattr(settings, "database", None)
+    if db is None:
+        return None
+    if isinstance(db, dict):
+        return db.get(name)
+    return getattr(db, name, None)
 
 
 async def check_comprehensive_status():
@@ -29,7 +59,7 @@ async def check_comprehensive_status():
     table.add_column("Performance", justify="right", style="yellow")
 
     with Progress(
-        SpinnerColumn(),
+        SpinnerColumn(spinner_name="line"),  # ASCII spinner to avoid Windows encoding issues
         TextColumn("[progress.description]{task.description}"),
         console=console,
     ) as progress:
@@ -52,7 +82,7 @@ async def check_comprehensive_status():
             table.add_row(
                 "Database",
                 "Connected",
-                f"URL: {settings.database.url}",
+                f"URL: {_database_value('url') or 'unknown'}",
                 f"Recent TXs: {tx_count}",
             )
             await db.close()
@@ -96,13 +126,13 @@ async def check_comprehensive_status():
         progress.update(task, description="Checking API integrations...")
         api_statuses = []
 
-        if settings.api.etherscan_api_key:
+        if _api_value("etherscan_api_key"):
             api_statuses.append("Etherscan  ")
-        if settings.api.coingecko_api_key:
+        if _api_value("coingecko_api_key"):
             api_statuses.append("CoinGecko  ")
-        if settings.api.coinmarketcap_api_key:
+        if _api_value("coinmarketcap_api_key"):
             api_statuses.append("CoinMarketCap  ")
-        if settings.api.infura_project_id:
+        if _api_value("infura_project_id"):
             api_statuses.append("Infura  ")
 
         table.add_row(
@@ -114,13 +144,13 @@ async def check_comprehensive_status():
 
         # Check notification services
         progress.update(task, description="Checking notification services...")
-        notification_channels = settings.notifications.channels
+        notification_channels = _notifications_value("channels") or []
         if notification_channels:
             table.add_row(
                 "Notifications",
                 "Enabled",
                 f"Channels: {', '.join(notification_channels)}",
-                f"Level: {settings.notifications.min_level}",
+                f"Level: {_notifications_value('min_level') or 'INFO'}",
             )
         else:
             table.add_row("Notifications", "Disabled", "No channels configured", "Silent mode")
