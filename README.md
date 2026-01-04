@@ -21,15 +21,7 @@ Async, multi-chain MEV/arbitrage engine with safety rails, flashloan support, an
 
 ## Feature Highlights
 
-
-+----------------+--------------------------------------------------+
-| Execution      | Async orchestrator, per-chain workers, ML bias   |
-| Strategies     | Arbitrage, back/front-run, flashloans (Aave V3)  |
-| Market Data    | Keyless price fetch (well-known set), on-chain   |
-| Risk           | Gas caps, slippage limits, balance tiers, halt   |
-| Monitoring     | Heartbeats, logs, alerts, perf snapshots         |
-+----------------+--------------------------------------------------+
-
+<img width="9867" height="2500" alt="Dia" src="https://github.com/user-attachments/assets/9acc0ac1-c5f3-45f1-a8c9-bf6bf1f3b232" />
 
 ## Fast Start
 
@@ -71,8 +63,7 @@ python -m on1builder run start
 
 ## Architecture Map
 
-
-
+<img width="6265" height="4722" alt="Arch" src="https://github.com/user-attachments/assets/934d3aaa-fae0-49c2-b28d-e740bedf0e2f" />
 
 ## Configuration Cheat Sheet
 
@@ -105,6 +96,8 @@ Get-Content logs\\on1builder.log -Wait  # Windows
 Heartbeats report balance tier, pending tx count (0 if txpool scanner is disabled), and memory usage.
 
 ## Development
+
+<img width="15082" height="7425" alt="flow" src="https://github.com/user-attachments/assets/c7838b3d-65f1-4856-ae90-34bb55d82e3e" />
 
 ```bash
 python -m pytest            # fast/local tests
