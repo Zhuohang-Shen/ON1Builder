@@ -1,6 +1,6 @@
-# src/on1builder/config/validation.py
-# flake8: noqa E501
-"""Configuration validation utilities for ON1Builder."""
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 
 class ConfigValidator:
-    """Validates configuration settings for ON1Builder."""
+    """Validates configuration settings for ON1Builder. """
 
     # Chain ID validation ranges
     VALID_CHAIN_IDS = {
@@ -41,9 +41,11 @@ class ConfigValidator:
 
     @classmethod
     def validate_wallet_address(cls, address: str) -> str:
-        """Validate Ethereum wallet address format."""
+        """Validate Ethereum wallet address format. """
         if not address:
-            raise ValidationError("Wallet address cannot be empty", field="wallet_address")
+            raise ValidationError(
+                "Wallet address cannot be empty", field="wallet_address"
+            )
 
         if not cls.ADDRESS_PATTERN.match(address):
             raise ValidationError(
@@ -57,7 +59,7 @@ class ConfigValidator:
 
     @classmethod
     def validate_private_key(cls, private_key: str) -> str:
-        """Validate private key format."""
+        """Validate private key format. """
         if not private_key:
             raise ValidationError("Private key cannot be empty", field="wallet_key")
 
@@ -73,9 +75,11 @@ class ConfigValidator:
 
     @classmethod
     def validate_chain_ids(cls, chain_ids: List[int]) -> List[int]:
-        """Validate list of chain IDs."""
+        """Validate list of chain IDs. """
         if not chain_ids:
-            raise ValidationError("At least one chain ID must be specified", field="chains")
+            raise ValidationError(
+                "At least one chain ID must be specified", field="chains"
+            )
 
         invalid_chains = [cid for cid in chain_ids if cid not in cls.VALID_CHAIN_IDS]
         if invalid_chains:
@@ -89,8 +93,10 @@ class ConfigValidator:
         return list(set(chain_ids))  # Remove duplicates
 
     @classmethod
-    def validate_rpc_urls(cls, rpc_urls: Dict[int, str], chain_ids: List[int]) -> Dict[int, str]:
-        """Validate RPC URLs for specified chains."""
+    def validate_rpc_urls(
+        cls, rpc_urls: Dict[int, str], chain_ids: List[int]
+    ) -> Dict[int, str]:
+        """Validate RPC URLs for specified chains. """
         missing_rpcs = [cid for cid in chain_ids if cid not in rpc_urls]
         if missing_rpcs:
             raise ConfigurationError(
@@ -102,7 +108,9 @@ class ConfigValidator:
         for chain_id, url in rpc_urls.items():
             if not url or not isinstance(url, str):
                 raise ValidationError(
-                    f"Invalid RPC URL for chain {chain_id}", field=f"rpc_url_{chain_id}", value=url
+                    f"Invalid RPC URL for chain {chain_id}",
+                    field=f"rpc_url_{chain_id}",
+                    value=url,
                 )
 
             if not (url.startswith("http://") or url.startswith("https://")):
@@ -112,13 +120,47 @@ class ConfigValidator:
                     value=url,
                 )
 
+            # Basic sanity checks to catch obvious misconfigurations
+            lower = url.lower()
+            if "mainnet" in lower and chain_id not in (1,):
+                logger.warning(f"RPC URL for chain {chain_id} looks like mainnet: {url}")
+            if "goerli" in lower and chain_id not in (5, 420, 421613):
+                logger.warning(f"RPC URL for chain {chain_id} looks like Goerli: {url}")
+            if "sepolia" in lower and chain_id not in (11155111,):
+                logger.warning(f"RPC URL for chain {chain_id} looks like Sepolia: {url}")
+            if "bsc" in lower and chain_id not in (56, 97):
+                logger.warning(f"RPC URL for chain {chain_id} looks like BSC: {url}")
+            if "bitcoin" in lower or "btc" in lower:
+                raise ValidationError(
+                    f"RPC URL for chain {chain_id} appears to be a Bitcoin RPC, "
+                    "which is not supported",
+                    field=f"rpc_url_{chain_id}",
+                    value=url,
+                )
+            if "solana" in lower or "sol" in lower:
+                raise ValidationError(
+                    f"RPC URL for chain {chain_id} appears to be a Solana RPC, "
+                    "which is not supported",
+                    field=f"rpc_url_{chain_id}",
+                    value=url,
+                )
+            if "polygon" in lower and chain_id not in (137, 80001):
+                logger.warning(f"RPC URL for chain {chain_id} looks like Polygon: {url}")
+            if "arbitrum" in lower and chain_id not in (42161, 421613):
+                logger.warning(f"RPC URL for chain {chain_id} looks like Arbitrum: {url}")
+            if "optimism" in lower and chain_id not in (10, 420):
+                logger.warning(f"RPC URL for chain {chain_id} looks like Optimism: {url}")
+            if "avalanche" in lower and chain_id not in (43114, 43113):
+                logger.warning(f"RPC URL for chain {chain_id} looks like Avalanche: {url}")
+            if "fantom" in lower and chain_id not in (250, 4002):
+                logger.warning(f"RPC URL for chain {chain_id} looks like Fantom: {url}")
         return rpc_urls
 
     @classmethod
     def validate_balance_thresholds(
         cls, emergency_threshold: float, low_threshold: float, high_threshold: float
     ) -> None:
-        """Validate balance threshold configuration."""
+        """Validate balance threshold configuration. """
         if emergency_threshold < 0:
             raise ValidationError(
                 "Emergency balance threshold cannot be negative",
@@ -142,9 +184,12 @@ class ConfigValidator:
 
     @classmethod
     def validate_gas_settings(
-        cls, max_gas_price_gwei: int, gas_price_multiplier: float, default_gas_limit: int
+        cls,
+        max_gas_price_gwei: int,
+        gas_price_multiplier: float,
+        default_gas_limit: int,
     ) -> None:
-        """Validate gas-related settings."""
+        """Validate gas-related settings. """
         if max_gas_price_gwei <= 0:
             raise ValidationError(
                 "Maximum gas price must be positive",
@@ -174,12 +219,17 @@ class ConfigValidator:
 
     @classmethod
     def validate_profit_settings(
-        cls, min_profit_eth: float, min_profit_percentage: float, slippage_tolerance: float
+        cls,
+        min_profit_eth: float,
+        min_profit_percentage: float,
+        slippage_tolerance: float,
     ) -> None:
-        """Validate profit-related settings."""
+        """Validate profit-related settings. """
         if min_profit_eth < 0:
             raise ValidationError(
-                "Minimum profit cannot be negative", field="min_profit_eth", value=min_profit_eth
+                "Minimum profit cannot be negative",
+                field="min_profit_eth",
+                value=min_profit_eth,
             )
 
         if min_profit_percentage < 0:
@@ -200,7 +250,7 @@ class ConfigValidator:
     def validate_ml_settings(
         cls, learning_rate: float, exploration_rate: float, decay_rate: float
     ) -> None:
-        """Validate machine learning settings."""
+        """Validate machine learning settings. """
         if not 0 < learning_rate <= 1:
             raise ValidationError(
                 "Learning rate must be between 0 and 1",
@@ -217,12 +267,16 @@ class ConfigValidator:
 
         if not 0 < decay_rate < 1:
             raise ValidationError(
-                "Decay rate must be between 0 and 1", field="ml_decay_rate", value=decay_rate
+                "Decay rate must be between 0 and 1",
+                field="ml_decay_rate",
+                value=decay_rate,
             )
 
     @classmethod
-    def validate_notification_settings(cls, channels: List[str], min_level: str) -> None:
-        """Validate notification settings."""
+    def validate_notification_settings(
+        cls, channels: List[str], min_level: str
+    ) -> None:
+        """Validate notification settings. """
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if min_level.upper() not in valid_levels:
             raise ValidationError(
@@ -243,7 +297,7 @@ class ConfigValidator:
 
     @classmethod
     def validate_file_paths(cls, paths: Dict[str, Union[str, Path]]) -> None:
-        """Validate file paths exist and are accessible."""
+        """Validate file paths exist and are accessible. """
         for path_name, path_value in paths.items():
             if not path_value:
                 continue
@@ -251,7 +305,11 @@ class ConfigValidator:
             path = Path(path_value)
             # Windows-specific guard: POSIX-style absolute paths without a drive
             # (e.g. "/invalid/path") are typically unintended and should be rejected early.
-            if (path.is_absolute() or str(path).startswith(("/", "\\"))) and path.drive == "" and path.anchor in ("/", "\\"):
+            if (
+                (path.is_absolute() or str(path).startswith(("/", "\\")))
+                and path.drive == ""
+                and path.anchor in ("/", "\\")
+            ):
                 raise ValidationError(
                     f"Cannot create directory: {path}",
                     field=path_name,
@@ -309,7 +367,9 @@ class ConfigValidator:
                 )
 
             if "wallet_key" in config_dict:
-                config_dict["wallet_key"] = self.validate_private_key(config_dict["wallet_key"])
+                config_dict["wallet_key"] = self.validate_private_key(
+                    config_dict["wallet_key"]
+                )
 
             # Validate chain settings
             if "chains" in config_dict:
@@ -339,7 +399,11 @@ class ConfigValidator:
             # Validate gas settings
             if all(
                 k in config_dict
-                for k in ["max_gas_price_gwei", "gas_price_multiplier", "default_gas_limit"]
+                for k in [
+                    "max_gas_price_gwei",
+                    "gas_price_multiplier",
+                    "default_gas_limit",
+                ]
             ):
                 self.validate_gas_settings(
                     config_dict["max_gas_price_gwei"],
@@ -350,7 +414,11 @@ class ConfigValidator:
             # Validate profit settings
             if all(
                 k in config_dict
-                for k in ["min_profit_eth", "min_profit_percentage", "slippage_tolerance"]
+                for k in [
+                    "min_profit_eth",
+                    "min_profit_percentage",
+                    "slippage_tolerance",
+                ]
             ):
                 self.validate_profit_settings(
                     config_dict["min_profit_eth"],
@@ -358,9 +426,43 @@ class ConfigValidator:
                     config_dict["slippage_tolerance"],
                 )
 
+            # Validate submission mode and simulation backend
+            if "submission_mode" in config_dict:
+                if config_dict["submission_mode"] not in ("public", "private"):
+                    raise ValidationError(
+                        "submission_mode must be 'public' or 'private'",
+                        field="submission_mode",
+                        value=config_dict["submission_mode"],
+                    )
+            if "simulation_backend" in config_dict:
+                if config_dict["simulation_backend"] not in ("eth_call", "anvil", "tenderly"):
+                    raise ValidationError(
+                        "simulation_backend must be one of: eth_call, anvil, tenderly",
+                        field="simulation_backend",
+                        value=config_dict["simulation_backend"],
+                    )
+            if "submission_mode" in config_dict and config_dict["submission_mode"] == "private":
+                if not config_dict.get("private_rpc_url"):
+                    raise ValidationError(
+                        "private_rpc_url is required when submission_mode is 'private'",
+                        field="private_rpc_url",
+                    )
+            if "simulation_backend" in config_dict and config_dict["simulation_backend"] == "tenderly":
+                missing = [
+                    key
+                    for key in ("tenderly_account_slug", "tenderly_project_slug", "tenderly_access_token")
+                    if not config_dict.get(key)
+                ]
+                if missing:
+                    raise ValidationError(
+                        f"Tenderly simulation requires: {missing}",
+                        field="tenderly_credentials",
+                    )
+
             # Validate ML settings
             if all(
-                k in config_dict for k in ["ml_learning_rate", "ml_exploration_rate", "ml_decay_rate"]
+                k in config_dict
+                for k in ["ml_learning_rate", "ml_exploration_rate", "ml_decay_rate"]
             ):
                 self.validate_ml_settings(
                     config_dict["ml_learning_rate"],
@@ -376,7 +478,9 @@ class ConfigValidator:
             raise
         except Exception as e:
             logger.error(f"Unexpected error during configuration validation: {e}")
-            raise ConfigurationError("Configuration validation failed due to unexpected error", cause=e)
+            raise ConfigurationError(
+                "Configuration validation failed due to unexpected error", cause=e
+            )
 
 
 # Provide a module-level wrapper to keep the public API simple

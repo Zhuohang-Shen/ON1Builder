@@ -1,5 +1,7 @@
-# src/on1builder/core/transaction_manager.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import asyncio
@@ -11,6 +13,8 @@ from eth_account.datastructures import SignedTransaction
 from eth_account.signers.local import LocalAccount
 from web3 import AsyncWeb3
 from web3.types import TxParams, Wei
+from web3.exceptions import TransactionNotFound
+import aiohttp
 
 from on1builder.config.loaders import settings
 from on1builder.core.balance_manager import BalanceManager
@@ -21,6 +25,7 @@ from on1builder.integrations.external_apis import ExternalAPIManager
 from on1builder.persistence.db_interface import DatabaseInterface
 from on1builder.utils.custom_exceptions import (
     ConnectionError,
+    InitializationError,
     InsufficientFundsError,
     StrategyExecutionError,
     TransactionError,
@@ -60,6 +65,13 @@ class TransactionManager:
         self._notification_service = NotificationService()
         self._gas_optimizer = GasOptimizer(web3)
         self._profit_calculator = ProfitCalculator(web3)
+        self._private_rpc_url = getattr(settings, "private_rpc_url", None)
+        self._tenderly_account = getattr(settings, "tenderly_account_slug", None)
+        self._tenderly_project = getattr(settings, "tenderly_project_slug", None)
+        self._tenderly_token = getattr(settings, "tenderly_access_token", None)
+        self._tenderly_base_url = getattr(
+            settings, "tenderly_base_url", "https://api.tenderly.co/api/v1"
+        )
 
         # Performance tracking
         self._execution_stats = {
@@ -69,13 +81,24 @@ class TransactionManager:
             "total_gas_spent_eth": 0.0,
         }
 
-        logger.info(f"ON1Builder TransactionManager initialized for chain ID {chain_id}.")
+        logger.info(
+            f"ON1Builder TransactionManager initialized for chain ID {chain_id}."
+        )
 
     async def initialize(self):
-        """Initialize the transaction manager and its components."""
+        """Initialize the transaction manager and its components. """
         try:
+            # Validate provider chain alignment
+            provider_chain_id = await self._web3.eth.chain_id
+            if int(provider_chain_id) != int(self._chain_id):
+                raise InitializationError(
+                    f"Web3 provider chain_id {provider_chain_id} does not match configured chain_id {self._chain_id}"
+                )
+
             await self._gas_optimizer.initialize()
-            logger.info(f"TransactionManager initialization complete for chain {self._chain_id}")
+            logger.info(
+                f"TransactionManager initialization complete for chain {self._chain_id}"
+            )
         except Exception as e:
             logger.error(f"Error initializing TransactionManager: {e}")
             raise
@@ -87,10 +110,11 @@ class TransactionManager:
         data: str = "0x",
         gas_limit: Optional[int] = None,
         gas_price: Optional[Wei] = None,
+        nonce: Optional[int] = None,
     ) -> TxParams:
-        """ON1Builder transaction building with dynamic gas optimization."""
+        """ transaction building with dynamic gas optimization. """
 
-        nonce = await self._nonce_manager.get_next_nonce()
+        nonce = nonce if nonce is not None else await self._nonce_manager.get_next_nonce()
 
         tx_params: TxParams = {
             "from": self._address,
@@ -115,9 +139,19 @@ class TransactionManager:
             if should_proceed:
                 tx_params["gasPrice"] = self._web3.to_wei(optimal_gas_gwei, "gwei")
             else:
-                raise InsufficientFundsError("Gas price too high relative to expected profit")
+                raise InsufficientFundsError(
+                    "Gas price too high relative to expected profit"
+                )
         else:
             tx_params["gasPrice"] = await self._web3.eth.gas_price
+
+        # Enforce max gas price ceiling to avoid runaway costs
+        max_allowed = self._web3.to_wei(settings.max_gas_price_gwei, "gwei")
+        if tx_params["gasPrice"] > max_allowed:
+            raise TransactionError(
+                f"Gas price {tx_params['gasPrice']} exceeds max_gas_price_gwei "
+                f"({settings.max_gas_price_gwei} gwei)"
+            )
 
         # Gas limit estimation with fallback
         if gas_limit:
@@ -134,7 +168,7 @@ class TransactionManager:
         return tx_params
 
     async def _sign_and_send(self, tx_params: TxParams) -> str:
-        """ON1Builder transaction signing with comprehensive safety checks."""
+        """ transaction signing with comprehensive safety checks. """
 
         # Safety check with balance awareness
         is_safe, reason = await self._safety_guard.check_transaction(tx_params)
@@ -158,27 +192,116 @@ class TransactionManager:
 
         for attempt in range(settings.transaction_retry_count):
             try:
-                tx_hash = await self._web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-                logger.info(f"Transaction sent: {tx_hash.hex()}")
-                return tx_hash.hex()
+                if settings.submission_mode == "public":
+                    tx_hash = await self._web3.eth.send_raw_transaction(
+                        signed_tx.rawTransaction
+                    )
+                    logger.info(f"Transaction sent: {tx_hash.hex()}")
+                    return tx_hash.hex()
+                elif settings.submission_mode == "private":
+                    if not self._private_rpc_url:
+                        raise StrategyExecutionError(
+                            "submission_mode is private but no private_rpc_url configured"
+                        )
+                    tx_hash_hex = await self._send_private_transaction(signed_tx.rawTransaction)
+                    logger.info(f"Private transaction sent: {tx_hash_hex}")
+                    return tx_hash_hex
+                else:
+                    raise StrategyExecutionError(
+                        f"Submission mode '{settings.submission_mode}' not implemented; use public or private."
+                    )
             except Exception as e:
+                error_text = str(e).lower()
                 logger.warning(f"Transaction send attempt {attempt + 1} failed: {e}")
-                if "nonce too low" in str(e).lower():
+
+                # Nonce too low: resync and retry with new nonce
+                if "nonce too low" in error_text:
                     await self._nonce_manager.resync_nonce()
                     tx_params["nonce"] = await self._nonce_manager.get_next_nonce()
                     signed_tx = self._account.sign_transaction(tx_params)
                     logger.info("Nonce resynced. Retrying with new nonce.")
+
+                # Replacement underpriced: bump gas and retry
+                elif "replacement transaction underpriced" in error_text or "underpriced" in error_text:
+                    bump_factor = Decimal("1.1")
+                    current_gas_price = tx_params.get("gasPrice") or await self._web3.eth.gas_price
+                    bumped = int(Decimal(current_gas_price) * bump_factor)
+                    max_allowed = self._web3.to_wei(settings.max_gas_price_gwei, "gwei")
+                    if bumped > max_allowed:
+                        raise TransactionError(
+                            f"Cannot bump gas price beyond max_gas_price_gwei ({settings.max_gas_price_gwei} gwei)"
+                        )
+                    tx_params["gasPrice"] = bumped
+                    signed_tx = self._account.sign_transaction(tx_params)
+                    logger.info(f"Gas price bumped to {bumped} wei due to underpriced replacement.")
+
                 await asyncio.sleep(settings.transaction_retry_delay)
 
         raise TransactionError("Failed to send transaction after multiple retries.")
 
     async def wait_for_receipt(self, tx_hash: str, timeout: int = 120) -> Dict[str, Any]:
-        """Wait for transaction receipt with configurable timeout."""
+        """Wait for transaction receipt with timeout and dropped-tx detection. """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                receipt = await self._web3.eth.get_transaction_receipt(tx_hash)
+                if receipt:
+                    return receipt
+            except TransactionNotFound:
+                # Keep polling; tx may still be pending or replaced
+                pass
+            await asyncio.sleep(2)
+
+        # Timeout: check if tx still exists in mempool; if not, treat as dropped
         try:
-            receipt = await self._web3.eth.wait_for_transaction_receipt(tx_hash, timeout)
-            return receipt
-        except asyncio.TimeoutError:
-            raise TransactionError(f"Transaction {tx_hash} not confirmed within {timeout}s.")
+            pending_tx = await self._web3.eth.get_transaction(tx_hash)
+        except TransactionNotFound:
+            pending_tx = None
+
+        if pending_tx is None:
+            await self._nonce_manager.resync_nonce()
+            raise TransactionError(
+                f"Transaction {tx_hash} appears dropped or replaced after {timeout}s; nonce resynced."
+            )
+
+        raise TransactionError(f"Transaction {tx_hash} not confirmed within {timeout}s.")
+
+    async def _send_private_transaction(self, raw_tx: bytes) -> str:
+        """
+        Send a private transaction via a configured private RPC (e.g., Flashbots Protect).
+        Tries eth_sendPrivateTransaction first, then falls back to eth_sendRawTransaction.
+        """
+        if not self._private_rpc_url:
+            raise StrategyExecutionError("Private RPC URL not configured.")
+
+        async def _post(method: str) -> Optional[str]:
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": method,
+                "params": [raw_tx.hex()],
+            }
+            async with aiohttp.ClientSession() as session:
+                async with session.post(self._private_rpc_url, json=payload, timeout=15) as resp:
+                    data = await resp.json()
+                    if "error" in data:
+                        raise StrategyExecutionError(
+                            f"Private submission ({method}) failed: {data['error'].get('message', data['error'])}"
+                        )
+                    return data.get("result")
+
+        # Try eth_sendPrivateTransaction if relay supports it
+        try:
+            result = await _post("eth_sendPrivateTransaction")
+            if result:
+                return result
+        except Exception as e:
+            logger.debug(f"eth_sendPrivateTransaction failed, falling back: {e}")
+
+        result = await _post("eth_sendRawTransaction")
+        if not result:
+            raise StrategyExecutionError("Private submission returned no result")
+        return result
 
     async def execute_and_confirm(
         self,
@@ -186,7 +309,7 @@ class TransactionManager:
         strategy_name: str,
         expected_profit: Optional[Decimal] = None,
     ) -> Dict[str, Any]:
-        """ON1Builder execution with profit tracking and comprehensive logging."""
+        """ execution with profit tracking and comprehensive logging. """
 
         start_time = time.monotonic()
         tx_hash = ""
@@ -202,15 +325,18 @@ class TransactionManager:
 
             # Calculate actual costs and profit
             gas_used = receipt.get("gasUsed", 0)
-            effective_gas_price = receipt.get("effectiveGasPrice", tx_params.get("gasPrice", 0))
+            effective_gas_price = receipt.get(
+                "effectiveGasPrice", tx_params.get("gasPrice", 0)
+            )
             gas_cost_wei = gas_used * effective_gas_price
             gas_cost_eth = float(self._web3.from_wei(gas_cost_wei, "ether"))
 
             status = receipt.get("status") == 1
 
-            # Post-execution balance and profit calculation
+            # Post-execution balance and profit calculation. The balance delta already
+            # includes gas spend, so don't subtract gas again.
             post_balance = await self._balance_manager.update_balance(force=True)
-            actual_profit_eth = float(post_balance - pre_balance) - gas_cost_eth
+            actual_profit_eth = float(post_balance - pre_balance)
 
             # Update stats
             self._execution_stats["total_transactions"] += 1
@@ -305,7 +431,7 @@ class TransactionManager:
             }
 
     async def _get_dex_contract(self, dex_name: str):
-        """Get DEX contract with ON1Builder error handling."""
+        """Get DEX contract with ON1Builder error handling. """
         abi_name = f"{dex_name.lower()}_abi"
         abi = self._abi_registry.get_abi(abi_name)
         if not abi:
@@ -334,8 +460,105 @@ class TransactionManager:
 
         return self._web3.eth.contract(address=address, abi=abi)
 
+    def _get_wrapped_native_address(self) -> str:
+        """
+        Resolve the chain-specific wrapped native token address (e.g., WETH/WBNB).
+        Falls back to mainnet WETH if not configured, but logs so callers know.
+        """
+        address = self._abi_registry.get_token_address("WETH", self._chain_id)
+        if not address:
+            logger.warning(
+                f"No wrapped native token configured for chain {self._chain_id}; "
+                "falling back to mainnet WETH address."
+            )
+            address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+        return address.lower()
+
+    async def _simulate_transaction(self, tx_params: TxParams) -> None:
+        """
+        Lightweight preflight simulation using the configured backend.
+        For now, only eth_call is supported; other backends are placeholders.
+        """
+        backend = settings.simulation_backend
+        if backend == "eth_call":
+            tx_for_call = dict(tx_params)
+            tx_for_call.pop("nonce", None)
+            try:
+                await self._web3.eth.call(tx_for_call)
+            except Exception as e:
+                raise StrategyExecutionError(f"Simulation failed: {e}")
+        elif backend == "anvil":
+            # Use a local anvil fork RPC if provided
+            fork_rpc = self._private_rpc_url or getattr(settings, "private_rpc_url", None)
+            if not fork_rpc:
+                raise StrategyExecutionError(
+                    "Simulation backend 'anvil' requires private_rpc_url pointing to a forked node."
+                )
+            tx_for_call = dict(tx_params)
+            tx_for_call.pop("nonce", None)
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "eth_call",
+                    "params": [tx_for_call, "latest"],
+                }
+                async with session.post(fork_rpc, json=payload, timeout=15) as resp:
+                    data = await resp.json()
+                    if "error" in data:
+                        raise StrategyExecutionError(
+                            f"Anvil simulation failed: {data['error'].get('message', data['error'])}"
+                        )
+        elif backend == "tenderly":
+            await self._simulate_with_tenderly(tx_params)
+        else:
+            raise StrategyExecutionError(
+                f"Simulation backend '{backend}' not implemented; switch to eth_call or disable allow_unsimulated_trades"
+            )
+
+    async def _simulate_with_tenderly(self, tx_params: TxParams) -> None:
+        """Simulate a transaction using Tenderly API. """
+        if not (self._tenderly_account and self._tenderly_project and self._tenderly_token):
+            raise StrategyExecutionError("Tenderly credentials not configured.")
+
+        url = (
+            f"{self._tenderly_base_url}/account/"
+            f"{self._tenderly_account}/project/{self._tenderly_project}/simulate"
+        )
+
+        payload = {
+            "network_id": str(self._chain_id),
+            "from": tx_params.get("from"),
+            "to": tx_params.get("to"),
+            "input": tx_params.get("data", "0x"),
+            "gas": tx_params.get("gas", settings.default_gas_limit),
+            "gas_price": tx_params.get("gasPrice") or await self._web3.eth.gas_price,
+            "value": tx_params.get("value", 0),
+            "save": False,
+            "save_if_fails": False,
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self._tenderly_token}",
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers, timeout=15) as resp:
+                data = await resp.json()
+                if resp.status >= 400 or "error" in data:
+                    message = data.get("error", {}).get("message") if isinstance(data.get("error"), dict) else data.get("error")
+                    raise StrategyExecutionError(f"Tenderly simulation failed: {message or data}")
+                # success: no return value needed
+
+    async def _get_token_allowance(self, token_address: str, spender: str) -> int:
+        """Check ERC20 allowance for the spender. """
+        erc20_abi = self._abi_registry.get_abi("erc20_abi")
+        token_contract = self._web3.eth.contract(address=token_address, abi=erc20_abi)
+        return await token_contract.functions.allowance(self._address, spender).call()
+
     async def _get_swap_path(self, opportunity: Dict[str, Any]) -> List[str]:
-        """ON1Builder path resolution with validation."""
+        """ path resolution with validation. """
         path = opportunity.get("path")
         if not path or len(path) < 2:
             raise StrategyExecutionError("Invalid or missing swap path in opportunity.")
@@ -349,7 +572,9 @@ class TransactionManager:
                 # Resolve symbol to address
                 address = self._abi_registry.get_token_address(symbol, self._chain_id)
                 if not address:
-                    raise StrategyExecutionError(f"Token address not found for symbol: {symbol}")
+                    raise StrategyExecutionError(
+                        f"Token address not found for symbol: {symbol}"
+                    )
                 resolved_path.append(address)
 
         return resolved_path
@@ -357,7 +582,7 @@ class TransactionManager:
     async def _calculate_amounts_with_slippage(
         self, opportunity: Dict[str, Any]
     ) -> Tuple[int, int]:
-        """Calculate swap amounts with slippage protection."""
+        """Calculate swap amounts with slippage protection. """
         amount_in = opportunity.get("amount_in", 0)
         expected_amount_out = opportunity.get("expected_amount_out", 0)
 
@@ -373,26 +598,40 @@ class TransactionManager:
 
         return amount_in, amount_out_min
 
-    async def execute_swap(self, opportunity: Dict[str, Any], strategy_name: str) -> Dict[str, Any]:
-        """ON1Builder swap execution with comprehensive validation."""
+    async def execute_swap(
+        self, opportunity: Dict[str, Any], strategy_name: str
+    ) -> Dict[str, Any]:
+        """ swap execution with comprehensive validation. """
+
+        if not opportunity.get("simulated", False) and not settings.allow_unsimulated_trades:
+            reason = "Opportunity not simulated and allow_unsimulated_trades is False"
+            logger.warning(reason)
+            return {"success": False, "reason": reason}
 
         # Validate opportunity has required fields
         required_fields = ["dex", "path", "amount_in"]
         for field in required_fields:
             if field not in opportunity:
-                raise StrategyExecutionError(f"Missing required field in opportunity: {field}")
+                raise StrategyExecutionError(
+                    f"Missing required field in opportunity: {field}"
+                )
 
         dex_name = opportunity.get("dex", "uniswap")
         dex_contract = await self._get_dex_contract(dex_name)
 
-        path = await self._get_swap_path(opportunity)
-        amount_in, amount_out_min = await self._calculate_amounts_with_slippage(opportunity)
+        # Normalize path to checksum addresses for web3 compatibility
+        raw_path = await self._get_swap_path(opportunity)
+        path = [self._web3.to_checksum_address(addr) for addr in raw_path]
+        amount_in, amount_out_min = await self._calculate_amounts_with_slippage(
+            opportunity
+        )
 
         deadline = int(time.time()) + 300  # 5 minute deadline
 
         # Check if we have enough balance for this swap
-        if path[0] != "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2":  # Not ETH
-            # Check token balance
+        wrapped_native = self._get_wrapped_native_address()
+        first_hop = path[0].lower()
+        if first_hop != wrapped_native:  # Token in
             token_contract = self._web3.eth.contract(
                 address=path[0], abi=self._abi_registry.get_abi("erc20_abi")
             )
@@ -401,14 +640,20 @@ class TransactionManager:
                 raise InsufficientFundsError(
                     f"Insufficient token balance. Required: {amount_in}, Available: {balance}"
                 )
+            # Ensure allowance is non-zero by default to avoid on-chain failures.
+            allowance = await self._get_token_allowance(path[0], dex_contract.address)
+            if allowance < amount_in:
+                raise StrategyExecutionError(
+                    f"Token allowance too low for spender {dex_contract.address}: {allowance} < {amount_in}"
+                )
 
         # Build transaction based on swap type
-        if path[0] == "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2":  # ETH to token
+        if path[0].lower() == wrapped_native:  # ETH to token
             function_call = dex_contract.functions.swapExactETHForTokens(
                 amount_out_min, path, self._address, deadline
             )
             value = Wei(amount_in)
-        elif path[-1] == "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2":  # Token to ETH
+        elif path[-1].lower() == wrapped_native:  # Token to ETH
             function_call = dex_contract.functions.swapExactTokensForETH(
                 amount_in, amount_out_min, path, self._address, deadline
             )
@@ -425,7 +670,6 @@ class TransactionManager:
                 "from": self._address,
                 "value": value,
                 "gas": settings.default_gas_limit,
-                "nonce": await self._nonce_manager.get_next_nonce(),
             }
         )["data"]
 
@@ -433,24 +677,36 @@ class TransactionManager:
             to=dex_contract.address, data=tx_data, value=value
         )
 
+        # Preflight simulate unless caller already simulated/bypassed
+        if not opportunity.get("simulated", False):
+            await self._simulate_transaction(tx_params)
+            opportunity["simulated"] = True
+
         # Override gas price if specified
         if opportunity.get("gas_price_wei"):
             tx_params["gasPrice"] = Wei(opportunity["gas_price_wei"])
         elif opportunity.get("optimal_gas_price"):
-            tx_params["gasPrice"] = self._web3.to_wei(opportunity["optimal_gas_price"], "gwei")
+            tx_params["gasPrice"] = self._web3.to_wei(
+                opportunity["optimal_gas_price"], "gwei"
+            )
 
         expected_profit = opportunity.get("expected_profit_eth", 0)
         return await self.execute_and_confirm(
-            tx_params, strategy_name, Decimal(str(expected_profit)) if expected_profit else None
+            tx_params,
+            strategy_name,
+            Decimal(str(expected_profit)) if expected_profit else None,
         )
 
     async def execute_arbitrage(self, opportunity: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute arbitrage opportunity with ON1Builder validation."""
+        """Execute arbitrage opportunity with ON1Builder validation. """
         logger.info(f"Executing arbitrage opportunity: {opportunity}")
 
         # Validate arbitrage opportunity
         if not opportunity.get("profit_potential", 0) > 0:
-            return {"success": False, "reason": "No profit potential in arbitrage opportunity"}
+            return {
+                "success": False,
+                "reason": "No profit potential in arbitrage opportunity",
+            }
 
         # Check if we should use flashloan
         required_amount = Decimal(str(opportunity.get("amount_in", 0)))
@@ -460,12 +716,15 @@ class TransactionManager:
         return await self.execute_swap(opportunity, "arbitrage")
 
     async def execute_front_run(self, opportunity: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute front-running strategy with gas optimization."""
+        """Execute front-running strategy with gas optimization. """
         logger.info(f"Executing front-run opportunity: {opportunity}")
 
         target_tx = opportunity.get("target_tx", {})
         if not target_tx:
-            return {"success": False, "reason": "No target transaction for front-running"}
+            return {
+                "success": False,
+                "reason": "No target transaction for front-running",
+            }
 
         target_gas_price = target_tx.get("gasPrice", 0)
 
@@ -480,17 +739,23 @@ class TransactionManager:
         ) / 10**18
 
         if gas_cost_estimate >= expected_profit * 0.8:  # Gas cost > 80% of profit
-            return {"success": False, "reason": "Gas cost too high relative to expected profit"}
+            return {
+                "success": False,
+                "reason": "Gas cost too high relative to expected profit",
+            }
 
         return await self.execute_swap(opportunity, "front_run")
 
     async def execute_back_run(self, opportunity: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute back-running strategy with timing optimization."""
+        """Execute back-running strategy with timing optimization. """
         logger.info(f"Executing back-run opportunity: {opportunity}")
 
         target_tx = opportunity.get("target_tx", {})
         if not target_tx:
-            return {"success": False, "reason": "No target transaction for back-running"}
+            return {
+                "success": False,
+                "reason": "No target transaction for back-running",
+            }
 
         # Wait for target transaction to be mined
         target_hash = target_tx.get("hash")
@@ -499,23 +764,30 @@ class TransactionManager:
                 await self.wait_for_receipt(target_hash, timeout=60)
                 logger.info("Target transaction confirmed, executing back-run")
             except TransactionError:
-                return {"success": False, "reason": "Target transaction not confirmed in time"}
+                return {
+                    "success": False,
+                    "reason": "Target transaction not confirmed in time",
+                }
 
         # Use slightly lower gas price for back-running
         target_gas_price = target_tx.get("gasPrice", 0)
         opportunity["gas_price_wei"] = max(
-            target_gas_price - self._web3.to_wei(1, "gwei"), await self._web3.eth.gas_price
+            target_gas_price - self._web3.to_wei(1, "gwei"),
+            await self._web3.eth.gas_price,
         )
 
         return await self.execute_swap(opportunity, "back_run")
 
     async def execute_sandwich(self, opportunity: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute sandwich attack with comprehensive coordination."""
+        """Execute sandwich attack with comprehensive coordination. """
         logger.info("Executing sandwich attack strategy")
 
         target_tx = opportunity.get("target_tx", {})
         if not target_tx:
-            return {"success": False, "reason": "No target transaction for sandwich attack"}
+            return {
+                "success": False,
+                "reason": "No target transaction for sandwich attack",
+            }
 
         # Prepare front-run and back-run opportunities
         front_run_opp = opportunity.copy()
@@ -562,7 +834,7 @@ class TransactionManager:
         if front_run_receipt:
             # Calculate amount received from front-run by parsing logs
             try:
-                receipt_obj = self._web3.eth.get_transaction_receipt(
+                receipt_obj = await self._web3.eth.get_transaction_receipt(
                     front_run_receipt.get("transactionHash")
                 )
                 amount_received = Decimal("0")
@@ -570,9 +842,7 @@ class TransactionManager:
                 # Parse Transfer events to get actual output amount
                 for log in receipt_obj.logs:
                     try:
-                        transfer_topic = (
-                            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
-                        )
+                        transfer_topic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
                         if log.topics and log.topics[0].hex() == transfer_topic:
                             # Check if transfer is to our address
                             to_address = "0x" + log.topics[2].hex()[-40:]
@@ -580,7 +850,8 @@ class TransactionManager:
                                 amount_hex = log.data[0:64] if log.data else "0x0"
                                 amount = int(amount_hex, 16)
                                 amount_received = max(
-                                    amount_received, self._web3.from_wei(amount, "ether")
+                                    amount_received,
+                                    self._web3.from_wei(amount, "ether"),
                                 )
                     except (IndexError, ValueError, AttributeError):
                         continue
@@ -613,15 +884,19 @@ class TransactionManager:
             "total_gas_cost_eth": front_run_cost + back_run_cost,
         }
 
-    async def execute_flashloan_arbitrage(self, opportunity: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute flashloan-based arbitrage with ON1Builder safety."""
+    async def execute_flashloan_arbitrage(
+        self, opportunity: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute flashloan-based arbitrage with ON1Builder safety. """
         logger.info("Executing flashloan arbitrage strategy")
 
         if not settings.flashloan_enabled:
             return {"success": False, "reason": "Flashloan functionality is disabled"}
 
         # Validate flashloan opportunity
-        required_amount = opportunity.get("flashloan_amount", opportunity.get("amount_in", 0))
+        required_amount = opportunity.get(
+            "flashloan_amount", opportunity.get("amount_in", 0)
+        )
         max_flashloan = settings.flashloan_max_amount_eth
 
         if required_amount > max_flashloan:
@@ -631,7 +906,9 @@ class TransactionManager:
             }
 
         expected_profit = opportunity.get("expected_profit_eth", 0)
-        min_profit_required = required_amount * settings.flashloan_min_profit_multiplier / 100
+        min_profit_required = (
+            required_amount * settings.flashloan_min_profit_multiplier / 100
+        )
 
         if expected_profit < min_profit_required:
             return {
@@ -641,7 +918,9 @@ class TransactionManager:
 
         # Prepare flashloan parameters
         assets = [
-            opportunity.get("flashloan_asset", "0xA0b86a33E6441E6b99aba6c00bbe0c47D6D2EC30")
+            opportunity.get(
+                "flashloan_asset", "0xA0b86a33E6441E6b99aba6c00bbe0c47D6D2EC30"
+            )
         ]  # WETH default
         amounts = [int(required_amount * 10**18)]  # Convert to Wei
 
@@ -689,7 +968,7 @@ class TransactionManager:
         return await self.execute_flashloan(flashloan_opportunity)
 
     async def execute_flashloan(self, opportunity: Dict[str, Any]) -> Dict[str, Any]:
-        """ON1Builder flashloan execution with comprehensive validation."""
+        """ flashloan execution with comprehensive validation. """
         strategy_name = "flashloan"
         logger.info(f"Executing flashloan strategy with opportunity: {opportunity}")
 
@@ -699,14 +978,20 @@ class TransactionManager:
         user_data: bytes = opportunity.get("user_data", b"")
 
         if not all([assets, amounts]):
-            raise StrategyExecutionError("Flashloan opportunity missing 'assets' or 'amounts'.")
+            raise StrategyExecutionError(
+                "Flashloan opportunity missing 'assets' or 'amounts'."
+            )
 
         if len(assets) != len(amounts):
-            raise StrategyExecutionError("Assets and amounts arrays must have same length.")
+            raise StrategyExecutionError(
+                "Assets and amounts arrays must have same length."
+            )
 
         # Get flashloan contract
         flashloan_contract_addresses = settings.contracts.simple_flashloan_contract
-        flashloan_contract_address = flashloan_contract_addresses.get(str(self._chain_id))
+        flashloan_contract_address = flashloan_contract_addresses.get(
+            str(self._chain_id)
+        )
 
         if not flashloan_contract_address:
             raise StrategyExecutionError(
@@ -717,12 +1002,16 @@ class TransactionManager:
         if not flashloan_abi:
             raise StrategyExecutionError("Flashloan ABI not found.")
 
-        contract = self._web3.eth.contract(address=flashloan_contract_address, abi=flashloan_abi)
+        contract = self._web3.eth.contract(
+            address=flashloan_contract_address, abi=flashloan_abi
+        )
 
         # Check if we have enough ETH for flashloan fees
         balance_summary = await self._balance_manager.get_balance_summary()
         if balance_summary["balance"] < 0.01:  # Need some ETH for fees
-            raise InsufficientFundsError("Insufficient ETH balance to pay flashloan fees")
+            raise InsufficientFundsError(
+                "Insufficient ETH balance to pay flashloan fees"
+            )
 
         # Build flashloan transaction
         try:
@@ -733,7 +1022,6 @@ class TransactionManager:
                     "chainId": self._chain_id,
                     "from": self._address,
                     "value": 0,
-                    "nonce": await self._nonce_manager.get_next_nonce(),
                 }
             )
 
@@ -746,7 +1034,9 @@ class TransactionManager:
 
             expected_profit = opportunity.get("expected_profit_eth", 0)
             result = await self.execute_and_confirm(
-                tx_params, strategy_name, Decimal(str(expected_profit)) if expected_profit else None
+                tx_params,
+                strategy_name,
+                Decimal(str(expected_profit)) if expected_profit else None,
             )
 
             if result["success"]:
@@ -757,7 +1047,9 @@ class TransactionManager:
                 result["flashloan_amounts"] = amounts
                 result["flashloan_assets"] = assets
 
-                logger.info(f"Flashloan executed successfully. Profit: {actual_profit:.6f} ETH")
+                logger.info(
+                    f"Flashloan executed successfully. Profit: {actual_profit:.6f} ETH"
+                )
 
             return result
 
@@ -770,7 +1062,7 @@ class TransactionManager:
             }
 
     async def _calculate_flashloan_profit(self, receipt: Dict[str, Any]) -> float:
-        """Calculate actual profit from flashloan transaction receipt."""
+        """Calculate actual profit from flashloan transaction receipt. """
         try:
             # Parse transaction logs to get exact profit by analyzing Transfer events
             logs = receipt.get("logs", [])
@@ -784,9 +1076,7 @@ class TransactionManager:
             for log in logs:
                 try:
                     # Check for Transfer events (ERC20)
-                    transfer_topic = (
-                        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
-                    )
+                    transfer_topic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
                     if log.get("topics") and len(log["topics"]) >= 3:
                         if log["topics"][0].hex() == transfer_topic:
                             from_addr = "0x" + log["topics"][1].hex()[-40:]
@@ -824,7 +1114,7 @@ class TransactionManager:
             return 0.0
 
     async def get_performance_stats(self) -> Dict[str, Any]:
-        """Return comprehensive performance statistics."""
+        """Return comprehensive performance statistics. """
         success_rate = 0.0
         if self._execution_stats["total_transactions"] > 0:
             success_rate = (
@@ -834,7 +1124,8 @@ class TransactionManager:
             )
 
         net_profit = (
-            self._execution_stats["total_profit_eth"] - self._execution_stats["total_gas_spent_eth"]
+            self._execution_stats["total_profit_eth"]
+            - self._execution_stats["total_gas_spent_eth"]
         )
 
         return {

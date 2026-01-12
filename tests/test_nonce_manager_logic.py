@@ -1,4 +1,5 @@
-"""Logical tests for NonceManager ensuring reliable nonce handling."""
+"""Logical tests for NonceManager ensuring reliable nonce handling. """
+
 import pytest
 
 from on1builder.core.nonce_manager import NonceManager
@@ -45,7 +46,7 @@ async def test_resync_refreshes_nonce_from_chain():
     manager = NonceManager(web3, "0xabc")
 
     await manager.get_next_nonce()  # initializes to 3
-    await manager.resync_nonce()    # forces refresh to next value (10)
+    await manager.resync_nonce()  # forces refresh to next value (10)
     refreshed = await manager.get_next_nonce()
 
     assert refreshed == 10

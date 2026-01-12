@@ -1,6 +1,6 @@
-# src/on1builder/utils/cli_helpers.py
-# flake8: noqa E501
-"""CLI utility functions and decorators for ON1Builder."""
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
 
 from __future__ import annotations
 import functools
@@ -25,7 +25,9 @@ console = Console()
 logger = get_logger(__name__)
 
 
-def handle_cli_errors(exit_on_error: bool = True, show_traceback: bool = False) -> Callable[[F], F]:
+def handle_cli_errors(
+    exit_on_error: bool = True, show_traceback: bool = False
+) -> Callable[[F], F]:
     """
     Decorator for standardized CLI error handling.
 
@@ -48,7 +50,8 @@ def handle_cli_errors(exit_on_error: bool = True, show_traceback: bool = False) 
             except InitializationError as e:
                 console.print(f"[bold red]❌ Initialization Error:[/] {e}")
                 logger.critical(
-                    f"Initialization error in {func.__name__}: {e}", exc_info=show_traceback
+                    f"Initialization error in {func.__name__}: {e}",
+                    exc_info=show_traceback,
                 )
                 if exit_on_error:
                     raise typer.Exit(code=2)
@@ -73,7 +76,9 @@ def handle_cli_errors(exit_on_error: bool = True, show_traceback: bool = False) 
                 return None
             except Exception as e:
                 console.print(f"[bold red]❌ Unexpected Error:[/] {e}")
-                logger.critical(f"Unexpected error in {func.__name__}: {e}", exc_info=True)
+                logger.critical(
+                    f"Unexpected error in {func.__name__}: {e}", exc_info=True
+                )
                 if show_traceback:
                     console.print_exception()
                 if exit_on_error:
@@ -86,22 +91,22 @@ def handle_cli_errors(exit_on_error: bool = True, show_traceback: bool = False) 
 
 
 def success_message(message: str) -> None:
-    """Display a success message with consistent formatting."""
+    """Display a success message with consistent formatting. """
     console.print(f"[bold green]✅ {message}[/]")
 
 
 def info_message(message: str) -> None:
-    """Display an info message with consistent formatting."""
+    """Display an info message with consistent formatting. """
     console.print(f"[blue]ℹ️ {message}[/]")
 
 
 def warning_message(message: str) -> None:
-    """Display a warning message with consistent formatting."""
+    """Display a warning message with consistent formatting. """
     console.print(f"[yellow]⚠️ {message}[/]")
 
 
 def error_message(message: str) -> None:
-    """Display an error message with consistent formatting."""
+    """Display an error message with consistent formatting. """
     console.print(f"[bold red]❌ {message}[/]")
 
 

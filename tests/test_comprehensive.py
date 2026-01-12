@@ -1,5 +1,6 @@
-# tests/test_comprehensive.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
 """
 Comprehensive test suite for ON1Builder core functionality.
 This addresses the lack of unit and integration tests.
@@ -27,13 +28,15 @@ from on1builder.utils.constants import BALANCE_TIER_THRESHOLDS, MIN_PROFIT_THRES
 
 
 class TestBalanceManager:
-    """Test suite for BalanceManager functionality."""
+    """Test suite for BalanceManager functionality. """
 
     @pytest.fixture
     def mock_web3(self):
         web3 = AsyncMock()
         web3.eth.get_balance = AsyncMock(return_value=1000000000000000000)  # 1 ETH
-        web3.from_wei = Mock(side_effect=lambda wei, unit: Decimal(str(wei)) / Decimal("1e18"))
+        web3.from_wei = Mock(
+            side_effect=lambda wei, unit: Decimal(str(wei)) / Decimal("1e18")
+        )
         return web3
 
     @pytest.fixture
@@ -42,14 +45,14 @@ class TestBalanceManager:
 
     @pytest.mark.asyncio
     async def test_balance_retrieval(self, balance_manager, mock_web3):
-        """Test basic balance retrieval functionality."""
+        """Test basic balance retrieval functionality. """
         balance = await balance_manager.get_balance()
         assert balance == Decimal("1.0")
         mock_web3.eth.get_balance.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_balance_caching(self, balance_manager, mock_web3):
-        """Test that balance caching works correctly."""
+        """Test that balance caching works correctly. """
         # First call should hit the blockchain
         balance1 = await balance_manager.get_balance()
         # Second call should use cache
@@ -61,14 +64,14 @@ class TestBalanceManager:
 
     @pytest.mark.asyncio
     async def test_insufficient_funds_detection(self, balance_manager, mock_web3):
-        """Test insufficient funds detection."""
+        """Test insufficient funds detection. """
         mock_web3.eth.get_balance.return_value = 100000000000000000  # 0.1 ETH
 
         with pytest.raises(InsufficientFundsError):
             await balance_manager.ensure_sufficient_balance(Decimal("1.0"))
 
     def test_balance_tier_classification(self, balance_manager):
-        """Test balance tier classification logic."""
+        """Test balance tier classification logic. """
         assert balance_manager._get_balance_tier(Decimal("0.005")) == "dust"
         assert balance_manager._get_balance_tier(Decimal("0.05")) == "small"
         assert balance_manager._get_balance_tier(Decimal("0.3")) == "medium"
@@ -77,7 +80,7 @@ class TestBalanceManager:
 
     @pytest.mark.asyncio
     async def test_profit_tracking(self, balance_manager):
-        """Test profit tracking functionality."""
+        """Test profit tracking functionality. """
         # Record some profits
         await balance_manager.record_profit(Decimal("0.01"), "arbitrage", "USDC-ETH")
         await balance_manager.record_profit(Decimal("0.005"), "front_run", "WETH-USDT")
@@ -89,7 +92,7 @@ class TestBalanceManager:
 
 
 class TestNonceManager:
-    """Test suite for NonceManager functionality."""
+    """Test suite for NonceManager functionality. """
 
     @pytest.fixture
     def mock_web3(self):
@@ -103,14 +106,14 @@ class TestNonceManager:
 
     @pytest.mark.asyncio
     async def test_nonce_initialization(self, nonce_manager, mock_web3):
-        """Test nonce initialization."""
+        """Test nonce initialization. """
         nonce = await nonce_manager.get_next_nonce()
         assert nonce == 42
         mock_web3.eth.get_transaction_count.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_nonce_increment(self, nonce_manager):
-        """Test that nonces increment correctly."""
+        """Test that nonces increment correctly. """
         nonce1 = await nonce_manager.get_next_nonce()
         nonce2 = await nonce_manager.get_next_nonce()
         nonce3 = await nonce_manager.get_next_nonce()
@@ -120,7 +123,7 @@ class TestNonceManager:
 
     @pytest.mark.asyncio
     async def test_concurrent_nonce_requests(self, nonce_manager):
-        """Test that concurrent nonce requests don't create duplicates."""
+        """Test that concurrent nonce requests don't create duplicates. """
         tasks = [nonce_manager.get_next_nonce() for _ in range(10)]
         nonces = await asyncio.gather(*tasks)
 
@@ -134,7 +137,7 @@ class TestNonceManager:
 
 
 class TestSafetyGuard:
-    """Test suite for SafetyGuard functionality."""
+    """Test suite for SafetyGuard functionality. """
 
     @pytest.fixture
     def mock_web3(self):
@@ -154,7 +157,7 @@ class TestSafetyGuard:
 
     @pytest.mark.asyncio
     async def test_gas_price_check(self, safety_guard):
-        """Test gas price safety check."""
+        """Test gas price safety check. """
         # Normal gas price should pass
         tx_params = {"gasPrice": 20_000_000_000, "gas": 100_000}  # 20 gwei
         is_safe, reason = await safety_guard.check_transaction(tx_params)
@@ -168,7 +171,7 @@ class TestSafetyGuard:
 
     @pytest.mark.asyncio
     async def test_balance_check(self, safety_guard, mock_balance_manager):
-        """Test balance safety check."""
+        """Test balance safety check. """
         # Sufficient balance should pass
         tx_params = {
             "value": 100_000_000_000_000_000,
@@ -191,7 +194,7 @@ class TestSafetyGuard:
 
     @pytest.mark.asyncio
     async def test_rate_limiting(self, safety_guard):
-        """Test transaction rate limiting."""
+        """Test transaction rate limiting. """
         tx_params = {"gasPrice": 20_000_000_000, "gas": 100_000}
 
         # First few transactions should pass
@@ -206,7 +209,7 @@ class TestSafetyGuard:
 
 
 class TestTxPoolScanner:
-    """Test suite for TxPoolScanner functionality."""
+    """Test suite for TxPoolScanner functionality. """
 
     @pytest.fixture
     def mock_web3(self):
@@ -223,12 +226,12 @@ class TestTxPoolScanner:
         return TxPoolScanner(mock_web3, mock_strategy_executor, chain_id=1)
 
     def test_dex_router_mapping(self, txpool_scanner):
-        """Test DEX router mapping creation."""
+        """Test DEX router mapping creation. """
         assert hasattr(txpool_scanner, "_dex_routers")
         assert isinstance(txpool_scanner._dex_routers, dict)
 
     def test_mev_pattern_detection(self, txpool_scanner):
-        """Test MEV pattern detection."""
+        """Test MEV pattern detection. """
         # Test sandwich attack detection
         analysis = {
             "input_data": "0x38ed1739000000000000000000000000000000000000000000000000000000000000000a"
@@ -240,7 +243,7 @@ class TestTxPoolScanner:
                 assert pattern_name in ["sandwich_attack", "arbitrage"]
 
     def test_transaction_relevance_check(self, txpool_scanner):
-        """Test transaction relevance checking."""
+        """Test transaction relevance checking. """
         # High value transaction should be relevant
         analysis = {
             "to": "0x7a250d5630b4cf539739df2c5dacb4c659f2488d",  # Uniswap router
@@ -255,7 +258,7 @@ class TestTxPoolScanner:
         assert is_relevant
 
     def test_cache_management(self, txpool_scanner):
-        """Test cache size management."""
+        """Test cache size management. """
         # Fill cache beyond threshold
         for i in range(txpool_scanner.MAX_TX_CACHE_SIZE + 100):
             txpool_scanner._tx_analysis_cache[f"tx_{i}"] = {"test": "data"}
@@ -265,19 +268,23 @@ class TestTxPoolScanner:
         txpool_scanner._manage_cache_size()
 
         # Cache should be reduced
-        assert len(txpool_scanner._tx_analysis_cache) <= txpool_scanner.MAX_TX_CACHE_SIZE
+        assert (
+            len(txpool_scanner._tx_analysis_cache) <= txpool_scanner.MAX_TX_CACHE_SIZE
+        )
 
 
 class TestIntegration:
-    """Integration tests for component interactions."""
+    """Integration tests for component interactions. """
 
     @pytest.fixture
     def mock_components(self):
-        """Create mock components for integration testing."""
+        """Create mock components for integration testing. """
         web3 = AsyncMock()
         web3.eth.get_balance.return_value = 5_000_000_000_000_000_000  # 5 ETH
         web3.eth.get_transaction_count.return_value = 42
-        web3.from_wei = Mock(side_effect=lambda wei, unit: Decimal(str(wei)) / Decimal("1e18"))
+        web3.from_wei = Mock(
+            side_effect=lambda wei, unit: Decimal(str(wei)) / Decimal("1e18")
+        )
         web3.to_wei = Mock(
             side_effect=lambda amount, unit: int(Decimal(str(amount)) * Decimal("1e18"))
         )
@@ -289,12 +296,14 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     async def test_transaction_flow(self, mock_components):
-        """Test complete transaction flow from detection to execution."""
+        """Test complete transaction flow from detection to execution. """
         # Create components
         balance_manager = BalanceManager(
             mock_components["web3"], mock_components["account"].address
         )
-        nonce_manager = NonceManager(mock_components["web3"], mock_components["account"].address)
+        nonce_manager = NonceManager(
+            mock_components["web3"], mock_components["account"].address
+        )
 
         # Test balance check
         balance = await balance_manager.get_balance()
@@ -309,7 +318,7 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     async def test_error_propagation(self, mock_components):
-        """Test error propagation through component stack."""
+        """Test error propagation through component stack. """
         # Simulate connection error
         mock_components["web3"].eth.get_balance.side_effect = ConnectionError(
             "RPC connection failed"
@@ -324,7 +333,7 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     async def test_profit_calculation_integration(self, mock_components):
-        """Test profit calculation across multiple operations."""
+        """Test profit calculation across multiple operations. """
         balance_manager = BalanceManager(
             mock_components["web3"], mock_components["account"].address
         )
@@ -345,11 +354,11 @@ class TestIntegration:
 
 
 class TestPerformance:
-    """Performance and stress tests."""
+    """Performance and stress tests. """
 
     @pytest.mark.asyncio
     async def test_concurrent_nonce_performance(self):
-        """Test nonce manager performance under load."""
+        """Test nonce manager performance under load. """
         web3 = AsyncMock()
         web3.eth.get_transaction_count.return_value = 0
 
@@ -370,7 +379,7 @@ class TestPerformance:
 
     @pytest.mark.asyncio
     async def test_cache_performance(self):
-        """Test cache performance under load."""
+        """Test cache performance under load. """
         web3 = AsyncMock()
         strategy_executor = AsyncMock()
 
@@ -397,7 +406,7 @@ class TestPerformance:
 # Configuration for pytest
 @pytest.fixture(scope="session")
 def event_loop():
-    """Create an instance of the default event loop for the test session."""
+    """Create an instance of the default event loop for the test session. """
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
@@ -406,5 +415,11 @@ def event_loop():
 if __name__ == "__main__":
     # Run tests with coverage if executed directly
     pytest.main(
-        [__file__, "-v", "--cov=on1builder", "--cov-report=html", "--cov-report=term-missing"]
+        [
+            __file__,
+            "-v",
+            "--cov=on1builder",
+            "--cov-report=html",
+            "--cov-report=term-missing",
+        ]
     )

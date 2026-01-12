@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# flake8: noqa E501
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
 """
 Tests for utility modules.
 """
@@ -10,7 +11,7 @@ from decimal import Decimal
 
 
 def test_gas_optimizer_initialization():
-    """Test GasOptimizer basic initialization."""
+    """Test GasOptimizer basic initialization. """
     try:
         from on1builder.utils.gas_optimizer import GasOptimizer
 
@@ -26,7 +27,7 @@ def test_gas_optimizer_initialization():
 
 
 def test_profit_calculator_initialization():
-    """Test ProfitCalculator basic initialization."""
+    """Test ProfitCalculator basic initialization. """
     try:
         from on1builder.utils.profit_calculator import ProfitCalculator
 
@@ -42,7 +43,7 @@ def test_profit_calculator_initialization():
 
 
 def test_logging_config():
-    """Test that logging configuration works."""
+    """Test that logging configuration works. """
     from on1builder.utils.logging_config import get_logger
 
     logger = get_logger("test")
@@ -54,7 +55,7 @@ def test_logging_config():
 
 
 def test_notification_service_basic():
-    """Test NotificationService basic functionality."""
+    """Test NotificationService basic functionality. """
     try:
         from on1builder.utils.notification_service import NotificationService
 
@@ -72,7 +73,7 @@ def test_notification_service_basic():
 
 
 def test_container_basic():
-    """Test Container utility basic functionality."""
+    """Test Container utility basic functionality. """
     try:
         from on1builder.utils.container import Container
 

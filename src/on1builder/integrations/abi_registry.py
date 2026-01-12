@@ -1,5 +1,7 @@
-# src/on1builder/integrations/abi_registry.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import json
@@ -21,14 +23,20 @@ class ABIRegistry(metaclass=SingletonMeta):
     def __init__(self):
         self._abis: Dict[str, List[Dict[str, Any]]] = {}
         self._tokens: List[Dict[str, Any]] = []
-        self._token_map_by_symbol: Dict[int, Dict[str, str]] = {}  # chain_id -> {SYMBOL: address}
-        self._token_map_by_address: Dict[int, Dict[str, str]] = {}  # chain_id -> {address: SYMBOL}
-        self._token_info_by_address: Dict[int, Dict[str, Dict[str, Any]]] = {}  # chain_id -> {address: info}
+        self._token_map_by_symbol: Dict[int, Dict[str, str]] = (
+            {}
+        )  # chain_id -> {SYMBOL: address}
+        self._token_map_by_address: Dict[int, Dict[str, str]] = (
+            {}
+        )  # chain_id -> {address: SYMBOL}
+        self._token_info_by_address: Dict[int, Dict[str, Dict[str, Any]]] = (
+            {}
+        )  # chain_id -> {address: info}
         self._loaded = False
         self._load_all_resources()
 
     def _load_all_resources(self) -> None:
-        """Loads all ABIs and token data from the resources directory."""
+        """Loads all ABIs and token data from the resources directory. """
         if self._loaded:
             return
 
@@ -46,10 +54,14 @@ class ABIRegistry(metaclass=SingletonMeta):
                         abi_data = json.load(f)
                         # ABI can be a list directly or inside an 'abi' key
                         self._abis[name] = (
-                            abi_data if isinstance(abi_data, list) else abi_data.get("abi", [])
+                            abi_data
+                            if isinstance(abi_data, list)
+                            else abi_data.get("abi", [])
                         )
                         if not self._abis[name]:
-                            logger.warning(f"No ABI content found for '{name}' in {file_path}")
+                            logger.warning(
+                                f"No ABI content found for '{name}' in {file_path}"
+                            )
                 except (json.JSONDecodeError, IOError) as e:
                     logger.error(f"Failed to load or parse ABI file {file_path}: {e}")
 
@@ -66,12 +78,14 @@ class ABIRegistry(metaclass=SingletonMeta):
                 self._build_token_maps()
                 logger.info(f"Loaded and mapped {len(self._tokens)} tokens.")
             except (json.JSONDecodeError, IOError) as e:
-                logger.error(f"Failed to load or parse tokens file {tokens_file_path}: {e}")
+                logger.error(
+                    f"Failed to load or parse tokens file {tokens_file_path}: {e}"
+                )
 
         self._loaded = True
 
     def _build_token_maps(self):
-        """Builds hashmaps for quick token lookups by symbol and address."""
+        """Builds hashmaps for quick token lookups by symbol and address. """
         for token_data in self._tokens:
             symbol = token_data.get("symbol")
             if not symbol:
@@ -84,12 +98,16 @@ class ABIRegistry(metaclass=SingletonMeta):
                     # Map by symbol
                     if chain_id not in self._token_map_by_symbol:
                         self._token_map_by_symbol[chain_id] = {}
-                    self._token_map_by_symbol[chain_id][symbol.upper()] = address.lower()
+                    self._token_map_by_symbol[chain_id][
+                        symbol.upper()
+                    ] = address.lower()
 
                     # Map by address
                     if chain_id not in self._token_map_by_address:
                         self._token_map_by_address[chain_id] = {}
-                    self._token_map_by_address[chain_id][address.lower()] = symbol.upper()
+                    self._token_map_by_address[chain_id][
+                        address.lower()
+                    ] = symbol.upper()
 
                     # Store token info for quick lookup (including decimals/name where available)
                     if chain_id not in self._token_info_by_address:
@@ -103,7 +121,9 @@ class ABIRegistry(metaclass=SingletonMeta):
                         "api_ids": token_data.get("api_ids", {}),
                     }
                 except ValueError:
-                    logger.warning(f"Invalid chain ID '{chain_id_str}' for token {symbol}")
+                    logger.warning(
+                        f"Invalid chain ID '{chain_id_str}' for token {symbol}"
+                    )
 
     def get_abi(self, name: str) -> Optional[List[Dict[str, Any]]]:
         """
@@ -158,8 +178,10 @@ class ABIRegistry(metaclass=SingletonMeta):
     # ------------------------------------------------------------------
     # Additional helpers for token metadata
     # ------------------------------------------------------------------
-    def get_token_symbol_by_address(self, address: str, chain_id: Optional[int] = None) -> Optional[str]:
-        """Public-friendly alias that optionally searches across chains when chain_id is unknown."""
+    def get_token_symbol_by_address(
+        self, address: str, chain_id: Optional[int] = None
+    ) -> Optional[str]:
+        """Public-friendly alias that optionally searches across chains when chain_id is unknown. """
         address = address.lower()
         if chain_id is not None:
             return self._token_map_by_address.get(chain_id, {}).get(address)
@@ -170,8 +192,10 @@ class ABIRegistry(metaclass=SingletonMeta):
                 return symbol
         return None
 
-    def get_token_info_by_address(self, address: str, chain_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
-        """Return stored token metadata (symbol, name, decimals) for an address."""
+    def get_token_info_by_address(
+        self, address: str, chain_id: Optional[int] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Return stored token metadata (symbol, name, decimals) for an address. """
         address = address.lower()
         if chain_id is not None:
             return self._token_info_by_address.get(chain_id, {}).get(address)

@@ -1,5 +1,8 @@
-# flake8: noqa E501
-__version__ = "2.2.0"
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
+__version__ = "2.3.0"
 __author__ = "john0n1"
 __email__ = "john@on1.no"
 __license__ = "MIT"

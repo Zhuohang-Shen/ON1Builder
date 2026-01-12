@@ -1,5 +1,7 @@
-# src/on1builder/utils/container.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import inspect
@@ -12,7 +14,7 @@ logger = get_logger(__name__)
 
 
 class Container:
-    """A dependency injection container for managing component lifecycles with async support."""
+    """A dependency injection container for managing component lifecycles with async support. """
 
     def __init__(self) -> None:
         self._instances: Dict[str, Any] = {}
@@ -31,7 +33,9 @@ class Container:
         if not key:
             raise ValueError("Key cannot be empty")
 
-        logger.debug(f"Registering instance for key: '{key}' (type: {type(instance).__name__})")
+        logger.debug(
+            f"Registering instance for key: '{key}' (type: {type(instance).__name__})"
+        )
         self._instances[key] = instance
 
     def register_provider(self, key: str, provider: Callable[[], T]) -> None:
@@ -147,7 +151,9 @@ class Container:
                     else:
                         shutdown_method()
                 except Exception as e:
-                    logger.error(f"Error shutting down component '{key}': {e}", exc_info=True)
+                    logger.error(
+                        f"Error shutting down component '{key}': {e}", exc_info=True
+                    )
 
         self._instances.clear()
         self._providers.clear()
@@ -159,5 +165,5 @@ _container = Container()
 
 
 def get_container() -> Container:
-    """Provides access to the global DI container."""
+    """Provides access to the global DI container. """
     return _container

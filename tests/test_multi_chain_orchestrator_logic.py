@@ -1,4 +1,5 @@
-"""Logic-focused tests for MultiChainOrchestrator without network side effects."""
+"""Logic-focused tests for MultiChainOrchestrator without network side effects. """
+
 import asyncio
 from decimal import Decimal
 from types import SimpleNamespace
@@ -90,8 +91,16 @@ async def test_analyze_price_spreads_filters_by_profit(monkeypatch):
     ]
     orch = MultiChainOrchestrator(workers)
     price_data = {
-        1: {"price": Decimal("2000"), "gas_cost_usd": Decimal("1"), "liquidity_score": Decimal("0.8")},
-        137: {"price": Decimal("2100"), "gas_cost_usd": Decimal("1"), "liquidity_score": Decimal("0.8")},
+        1: {
+            "price": Decimal("2000"),
+            "gas_cost_usd": Decimal("1"),
+            "liquidity_score": Decimal("0.8"),
+        },
+        137: {
+            "price": Decimal("2100"),
+            "gas_cost_usd": Decimal("1"),
+            "liquidity_score": Decimal("0.8"),
+        },
     }
     opps = orch._analyze_price_spreads("ETH", price_data)
     assert opps, "Should surface arbitrage when spread exceeds gas + min profit"
@@ -107,7 +116,11 @@ async def test_optimal_trade_size_respects_limits(monkeypatch):
     orch = MultiChainOrchestrator(workers)
     buy_bm = DummyBalanceManager({"USDC": Decimal("800")})
     sell_bm = DummyBalanceManager({"ETH": Decimal("2")})
-    opportunity = {"liquidity_score": Decimal("0.5"), "score": 0.6, "token_symbol": "ETH"}
+    opportunity = {
+        "liquidity_score": Decimal("0.5"),
+        "score": 0.6,
+        "token_symbol": "ETH",
+    }
     size = await orch._calculate_optimal_trade_size(opportunity, buy_bm, sell_bm)
     # Should not exceed 80% of buy balance and should scale by risk factor
     assert size <= Decimal("800") * Decimal("0.8")

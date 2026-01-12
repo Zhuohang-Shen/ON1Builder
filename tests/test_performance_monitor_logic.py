@@ -1,4 +1,5 @@
-"""Behavioral tests for performance monitoring logic (no system dependency)."""
+"""Behavioral tests for performance monitoring logic (no system dependency). """
+
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -43,12 +44,17 @@ def test_health_status_reflects_degradation_conditions():
         failed_transactions=15,
     )
     monitor._metrics_history.append(degraded)
-    monitor._chain_metrics[42] = ChainMetrics(chain_id=42, is_healthy=False, connection_status="stale")
+    monitor._chain_metrics[42] = ChainMetrics(
+        chain_id=42, is_healthy=False, connection_status="stale"
+    )
     monitor.mark_chain_unhealthy(42, "stale")
 
     health = monitor.get_health_status()
     assert health["status"] in {"degraded", "unhealthy"}
-    assert any("CPU" in issue or "Low success rate" in issue for issue in health.get("issues", []))
+    assert any(
+        "CPU" in issue or "Low success rate" in issue
+        for issue in health.get("issues", [])
+    )
 
 
 def test_metrics_summary_aggregates_over_window():
@@ -80,4 +86,6 @@ def test_metrics_summary_aggregates_over_window():
     assert summary["metrics_count"] == 2
     assert summary["trading"]["total_transactions"] == 5
     assert summary["trading"]["successful_transactions"] == 3
-    assert summary["trading"]["net_profit_eth"] == float(Decimal("3.0") - Decimal("0.3"))
+    assert summary["trading"]["net_profit_eth"] == float(
+        Decimal("3.0") - Decimal("0.3")
+    )

@@ -1,5 +1,7 @@
-# src/on1builder/core/nonce_manager.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import asyncio
@@ -10,12 +12,11 @@ from web3 import AsyncWeb3
 from on1builder.config.loaders import settings
 from on1builder.utils.custom_exceptions import ConnectionError
 from on1builder.utils.logging_config import get_logger
-from on1builder.utils.singleton import SingletonMeta
 
 logger = get_logger(__name__)
 
 
-class NonceManager(metaclass=SingletonMeta):
+class NonceManager:
     """
     Manages transaction nonces for a single address to prevent race conditions
     and ensure sequential, unique nonces for all outgoing transactions.
@@ -28,26 +29,14 @@ class NonceManager(metaclass=SingletonMeta):
         self._lock = asyncio.Lock()
         logger.info(f"NonceManager initialized for address: {self._address}")
 
-    def _singleton_refresh(self, web3: AsyncWeb3, address: str):
-        """Reconfigure singleton instance when requested again."""
-        if web3 is not self._web3 or address != self._address:
-            logger.debug(
-                "NonceManager refresh detected provider/address change. Resetting nonce state."
-            )
-            self._web3 = web3
-            self._address = address
-            self._nonce = None
-        else:
-            # For repeated requests in the same context (e.g., tests), force nonce re-sync
-            logger.debug("NonceManager refresh triggered for existing configuration; clearing nonce cache.")
-            self._nonce = None
-
     async def _initialize_nonce(self):
-        """Fetches the initial nonce from the blockchain."""
+        """Fetches the initial nonce from the blockchain. """
         for attempt in range(settings.connection_retry_count):
             try:
                 # 'pending' includes transactions in the mempool
-                self._nonce = await self._web3.eth.get_transaction_count(self._address, "pending")
+                self._nonce = await self._web3.eth.get_transaction_count(
+                    self._address, "pending"
+                )
                 logger.info(f"Initial nonce for {self._address} set to: {self._nonce}")
                 return
             except Exception as e:
@@ -77,7 +66,9 @@ class NonceManager(metaclass=SingletonMeta):
             if self._nonce is not None:
                 current_nonce = self._nonce
                 self._nonce += 1
-                logger.debug(f"Providing nonce {current_nonce}, next will be {self._nonce}")
+                logger.debug(
+                    f"Providing nonce {current_nonce}, next will be {self._nonce}"
+                )
                 return current_nonce
 
             # This should not be reached if _initialize_nonce is successful
@@ -89,7 +80,9 @@ class NonceManager(metaclass=SingletonMeta):
         This is useful to recover from a state mismatch or after a manual transaction.
         """
         async with self._lock:
-            logger.warning(f"Forcing nonce re-synchronization for address {self._address}...")
+            logger.warning(
+                f"Forcing nonce re-synchronization for address {self._address}..."
+            )
             # Set nonce to None to trigger re-initialization on the next `get_next_nonce` call
             self._nonce = None
             await self._initialize_nonce()

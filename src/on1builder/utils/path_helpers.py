@@ -1,5 +1,7 @@
-# src/on1builder/utils/path_helpers.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from pathlib import Path
 from functools import lru_cache
 
@@ -51,24 +53,24 @@ def get_abi_path(abi_name: str) -> Path:
 
 @lru_cache(maxsize=1)
 def get_config_dir() -> Path:
-    """Get the configuration directory."""
+    """Get the configuration directory. """
     return get_base_dir() / "src" / "on1builder" / "config"
 
 
 @lru_cache(maxsize=1)
 def get_resource_dir() -> Path:
-    """Get the main resources directory."""
+    """Get the main resources directory. """
     return get_base_dir() / "src" / "on1builder" / "resources"
 
 
 def get_chain_config_path(chain_id: int) -> Path:
-    """Get the path to a chain-specific configuration file."""
+    """Get the path to a chain-specific configuration file. """
     return get_config_dir() / f"chain_{chain_id}.json"
 
 
 @lru_cache(maxsize=1)
 def get_monitored_tokens_path() -> Path:
-    """Get the absolute path to the monitored tokens JSON file from settings."""
+    """Get the absolute path to the monitored tokens JSON file from settings. """
     try:
         from on1builder.config.loaders import get_settings
 
@@ -89,7 +91,7 @@ def get_token_data_path(filename: str) -> Path:
 
 @lru_cache(maxsize=1)
 def get_strategy_weights_path() -> Path:
-    """Get the absolute path to the strategy weights JSON file."""
+    """Get the absolute path to the strategy weights JSON file. """
     return get_resource_path("ml_models", "strategy_weights.json")
 
 

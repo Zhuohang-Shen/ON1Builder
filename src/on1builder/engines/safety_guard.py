@@ -1,5 +1,7 @@
-# src/on1builder/engines/safety_guard.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 
@@ -55,7 +57,21 @@ class SafetyGuard:
         self._balance_manager = balance_manager
         self._notification_service = notification_service or NotificationService()
         self._settings = settings
-        self._chain_id = chain_id if chain_id is not None else getattr(web3.eth, "chain_id", None)
+        self._chain_id = (
+            chain_id if chain_id is not None else getattr(web3.eth, "chain_id", None)
+        )
+
+        # Validate provider chain_id if available
+        try:
+            provider_chain = getattr(web3.eth, "chain_id", None)
+            if provider_chain is not None and chain_id is not None:
+                if int(provider_chain) != int(chain_id):
+                    logger.warning(
+                        f"SafetyGuard chain_id mismatch: provider {provider_chain} vs configured {chain_id}"
+                    )
+        except Exception:
+            # Best-effort only; do not block initialization
+            pass
 
         # Transaction tracking with efficient storage
         self._recent_tx_signatures = set()
@@ -85,16 +101,21 @@ class SafetyGuard:
             "failed_gas_limit_checks": 0,
             "failed_duplicate_checks": 0,
             "circuit_breaks": 0,
-            "check_distribution": {check_name: 0 for check_name, _ in self.SAFETY_CHECKS},
+            "check_distribution": {
+                check_name: 0 for check_name, _ in self.SAFETY_CHECKS
+            },
         }
 
         logger.info("ON1Builder SafetyGuard initialized with advanced risk management.")
 
     @property
     def is_circuit_broken(self) -> bool:
-        """Returns True if the circuit breaker is currently active."""
+        """Returns True if the circuit breaker is currently active. """
         # Auto-reset circuit breaker after delay
-        if self._circuit_broken and time.time() - self._circuit_break_time > self._auto_reset_delay:
+        if (
+            self._circuit_broken
+            and time.time() - self._circuit_break_time > self._auto_reset_delay
+        ):
             self._auto_reset_circuit_breaker()
 
         return self._circuit_broken
@@ -132,7 +153,7 @@ class SafetyGuard:
         return True, "All ON1Builder safety checks passed."
 
     async def _check_balance(self, tx_params: TxParams) -> Tuple[bool, str]:
-        """ON1Builder balance check with tier-aware requirements."""
+        """ balance check with tier-aware requirements. """
         try:
             tx_value = tx_params.get("value", 0)
             from_address = tx_params.get("from")
@@ -178,7 +199,7 @@ class SafetyGuard:
             return False, "Error during balance check."
 
     def _get_dynamic_reserve(self, balance_eth: float) -> float:
-        """Get dynamic reserve based on balance tier."""
+        """Get dynamic reserve based on balance tier. """
         if balance_eth <= self._settings.emergency_balance_threshold:
             return self.BALANCE_TIER_RESERVES["emergency"]
         elif balance_eth <= self._settings.low_balance_threshold:
@@ -187,7 +208,7 @@ class SafetyGuard:
             return self._settings.min_wallet_balance
 
     async def _check_gas_price(self, tx_params: TxParams) -> Tuple[bool, str]:
-        """ON1Builder gas price validation with market awareness."""
+        """ gas price validation with market awareness. """
         gas_price_wei = tx_params.get("gasPrice")
         if gas_price_wei is None:
             return True, "Gas price not specified, will be set by web3."
@@ -242,10 +263,19 @@ class SafetyGuard:
                 f"Gas price ({gas_price_gwei:.2f} Gwei) exceeds {limit_descriptor}",
             )
 
+        # EIP-1559 fields: enforce ceilings if provided
+        if "maxFeePerGas" in tx_params:
+            max_fee_gwei = float(tx_params["maxFeePerGas"]) / 1e9
+            if max_fee_gwei > max_gas_price_gwei:
+                return (
+                    False,
+                    f"maxFeePerGas ({max_fee_gwei:.2f} Gwei) exceeds max_gas_price_gwei ({max_gas_price_gwei} Gwei)",
+                )
+
         return True, "Gas price is within accepted limits."
 
     async def _check_gas_limit(self, tx_params: TxParams) -> Tuple[bool, str]:
-        """ON1Builder gas limit validation with transaction type awareness."""
+        """ gas limit validation with transaction type awareness. """
         gas_limit = tx_params.get("gas")
         if gas_limit is None:
             return True, "Gas limit not specified, will be estimated."
@@ -262,12 +292,15 @@ class SafetyGuard:
             if gas_limit > 2_000_000:
                 return False, f"Gas limit ({gas_limit}) is excessively high"
             elif gas_limit < 21000:
-                return False, f"Gas limit ({gas_limit}) too low for contract interaction"
+                return (
+                    False,
+                    f"Gas limit ({gas_limit}) too low for contract interaction",
+                )
 
         return True, "Gas limit is reasonable for transaction type."
 
     async def _check_duplicate_tx(self, tx_params: TxParams) -> Tuple[bool, str]:
-        """ON1Builder duplicate transaction detection."""
+        """ duplicate transaction detection. """
         self._clear_stale_signatures()
 
         tx_signature = (
@@ -288,7 +321,7 @@ class SafetyGuard:
         return True, "Transaction uniqueness within safe threshold."
 
     async def _check_rate_limits(self, tx_params: TxParams) -> Tuple[bool, str]:
-        """Check transaction rate limits and gas spending limits."""
+        """Check transaction rate limits and gas spending limits. """
 
         # Check hourly gas spending limit
         gas_price = tx_params.get("gasPrice", 0)
@@ -313,7 +346,7 @@ class SafetyGuard:
         return True, "Rate limits OK."
 
     async def _check_profit_viability(self, tx_params: TxParams) -> Tuple[bool, str]:
-        """Check if transaction is likely to be profitable."""
+        """Check if transaction is likely to be profitable. """
 
         # Calculate gas cost
         gas_price = tx_params.get("gasPrice", 0)
@@ -335,7 +368,7 @@ class SafetyGuard:
         return True, "Profit viability check passed."
 
     async def _check_market_conditions(self, tx_params: TxParams) -> Tuple[bool, str]:
-        """Check current market conditions for safe execution."""
+        """Check current market conditions for safe execution. """
 
         try:
             # Check current gas price volatility
@@ -344,12 +377,17 @@ class SafetyGuard:
 
             # If gas is extremely high, be more cautious
             if current_gas_gwei > 300:  # Very high gas environment
-                logger.warning(f"Extreme gas environment detected: {current_gas_gwei:.2f} Gwei")
+                logger.warning(
+                    f"Extreme gas environment detected: {current_gas_gwei:.2f} Gwei"
+                )
 
                 # Only allow transactions with very high expected profit
                 expected_profit = tx_params.get("expected_profit_eth", 0)
                 if expected_profit < 0.01:  # Less than 0.01 ETH profit
-                    return False, "Market conditions too volatile for low-profit transactions"
+                    return (
+                        False,
+                        "Market conditions too volatile for low-profit transactions",
+                    )
 
             return True, "Market conditions acceptable."
 
@@ -358,7 +396,7 @@ class SafetyGuard:
             return True, "Market conditions check skipped due to error."
 
     def _record_failed_check(self, check_name: str):
-        """Record failed safety checks for monitoring."""
+        """Record failed safety checks for monitoring. """
         failure_keys = {
             "balance": "failed_balance_checks",
             "gas_price": "failed_gas_price_checks",
@@ -374,18 +412,18 @@ class SafetyGuard:
         self._failed_tx_count += 1
 
     def _reset_hourly_gas_if_needed(self):
-        """Reset hourly gas tracking if an hour has passed."""
+        """Reset hourly gas tracking if an hour has passed. """
         current_time = time.time()
         if current_time - self._last_gas_reset > 3600:  # 1 hour
             self._gas_spent_last_hour = 0.0
             self._last_gas_reset = current_time
 
     def record_gas_spent(self, gas_cost_eth: float):
-        """Record gas spent for rate limiting."""
+        """Record gas spent for rate limiting. """
         self._gas_spent_last_hour += gas_cost_eth
 
     def record_transaction_result(self, success: bool):
-        """Record transaction result for failure tracking."""
+        """Record transaction result for failure tracking. """
         if success:
             # Reset failure counter on success
             self._failed_tx_count = max(0, self._failed_tx_count - 1)
@@ -393,14 +431,14 @@ class SafetyGuard:
             self._failed_tx_count += 1
 
     def _clear_stale_signatures(self) -> None:
-        """Clear old transaction signatures."""
+        """Clear old transaction signatures. """
         if time.time() - self._last_clear_time > 60:  # Clear every 60 seconds
             self._recent_tx_signatures.clear()
             self._duplicate_attempts.clear()
             self._last_clear_time = time.time()
 
     async def trip_circuit_breaker(self, reason: str):
-        """ON1Builder circuit breaker with automatic reset scheduling."""
+        """ circuit breaker with automatic reset scheduling. """
         if not self._circuit_broken:
             self._circuit_broken = True
             self._circuit_break_reason = reason
@@ -421,7 +459,7 @@ class SafetyGuard:
             )
 
     def _auto_reset_circuit_breaker(self):
-        """Automatically reset circuit breaker and clear stats."""
+        """Automatically reset circuit breaker and clear stats. """
         logger.info("Circuit breaker auto-reset triggered")
         self._circuit_broken = False
         self._circuit_break_reason = ""
@@ -443,7 +481,7 @@ class SafetyGuard:
             logger.debug(f"Failed to send circuit breaker reset notification: {e}")
 
     def reset_circuit_breaker(self):
-        """Manually reset the circuit breaker."""
+        """Manually reset the circuit breaker. """
         if self._circuit_broken:
             self._circuit_broken = False
             self._circuit_break_reason = ""
@@ -451,11 +489,13 @@ class SafetyGuard:
             logger.info("Circuit breaker manually reset. Operations can resume.")
 
     def get_safety_stats(self) -> Dict[str, Any]:
-        """Get comprehensive safety statistics."""
+        """Get comprehensive safety statistics. """
         success_rate = 0.0
         if self._safety_stats["total_checks"] > 0:
             success_rate = (
-                self._safety_stats["passed_checks"] / self._safety_stats["total_checks"] * 100
+                self._safety_stats["passed_checks"]
+                / self._safety_stats["total_checks"]
+                * 100
             )
 
         return {
@@ -469,7 +509,7 @@ class SafetyGuard:
         }
 
     def get_performance_stats(self) -> Dict[str, Any]:
-        """Get comprehensive performance statistics for monitoring."""
+        """Get comprehensive performance statistics for monitoring. """
         total_checks = max(self._safety_stats["total_checks"], 1)
 
         return {

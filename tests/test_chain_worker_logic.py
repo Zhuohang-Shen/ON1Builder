@@ -1,4 +1,5 @@
-"""Logic-focused tests for ChainWorker status without starting network tasks."""
+"""Logic-focused tests for ChainWorker status without starting network tasks. """
+
 import pytest
 
 from on1builder.core.chain_worker import ChainWorker
@@ -21,6 +22,7 @@ async def test_status_running_reports_components(monkeypatch):
     worker.is_running = True
     worker._performance_stats = {"uptime_seconds": 5}
     worker.tx_scanner = type("TS", (), {"get_pending_tx_count": lambda self: 2})()
+
     async def bm_summary():
         return {"balance": 1.0, "balance_tier": "medium"}
 
@@ -42,9 +44,15 @@ async def test_status_running_reports_components(monkeypatch):
             "strategy_performance": {},
         }
 
-    worker.balance_manager = type("BM", (), {"get_balance_summary": lambda self: bm_summary()})()
-    worker.tx_manager = type("TM", (), {"get_performance_stats": lambda self: tx_stats()})()
-    worker.strategy_executor = type("SE", (), {"get_strategy_report": lambda self: strat_report()})()
+    worker.balance_manager = type(
+        "BM", (), {"get_balance_summary": lambda self: bm_summary()}
+    )()
+    worker.tx_manager = type(
+        "TM", (), {"get_performance_stats": lambda self: tx_stats()}
+    )()
+    worker.strategy_executor = type(
+        "SE", (), {"get_strategy_report": lambda self: strat_report()}
+    )()
 
     status = await worker.get_status()
     assert status["status"] == "running"

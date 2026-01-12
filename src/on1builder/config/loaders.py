@@ -1,5 +1,7 @@
-# src/on1builder/config/loaders.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import os
@@ -24,7 +26,7 @@ logger = get_logger(__name__)
 
 
 def find_dotenv() -> Optional[Path]:
-    """Find the .env file by searching upwards from the current file."""
+    """Find the .env file by searching upwards from the current file. """
     current_dir = Path(__file__).resolve().parent
     for _ in range(5):  # Search up to 5 levels
         env_path = current_dir / ".env"
@@ -50,7 +52,8 @@ class _EnvSettings(BaseSettings):
 
     # Core identity fields with sensible defaults to support test environments
     wallet_key: str = Field(
-        default="0x" + "1" * 64, description="Private key for the wallet (overrides via env)"
+        default="0x" + "1" * 64,
+        description="Private key for the wallet (overrides via env)",
     )
     wallet_address: str = Field(
         default="0x" + "1" * 40, description="Wallet address (overrides via env)"
@@ -70,6 +73,13 @@ class _EnvSettings(BaseSettings):
     gas_price_multiplier: float = 1.1
     default_gas_limit: int = 500000
     fallback_gas_price_gwei: int = 50
+    submission_mode: str = "public"
+    simulation_backend: str = "eth_call"
+    private_rpc_url: Optional[str] = None
+    tenderly_base_url: str = "https://api.tenderly.co/api/v1"
+    tenderly_account_slug: Optional[str] = None
+    tenderly_project_slug: Optional[str] = None
+    tenderly_access_token: Optional[str] = None
 
     # Balance and profit settings
     min_wallet_balance: float = 0.05
@@ -78,7 +88,9 @@ class _EnvSettings(BaseSettings):
     dynamic_profit_scaling: bool = True
     balance_risk_ratio: float = 0.3
     slippage_tolerance: float = 0.5
-    monitored_tokens_path: Path = Path("src/on1builder/resources/tokens/all_chains_tokens.json")
+    monitored_tokens_path: Path = Path(
+        "src/on1builder/resources/tokens/all_chains_tokens.json"
+    )
 
     # Flashloan settings
     flashloan_enabled: bool = True
@@ -159,7 +171,9 @@ class _EnvSettings(BaseSettings):
     smtp_password: Optional[str] = Field(None, alias="SMTP_PASSWORD")
     alert_email: Optional[str] = Field(None, alias="ALERT_EMAIL")
 
-    database_url: str = Field("sqlite+aiosqlite:///on1builder_data.db", alias="DATABASE_URL")
+    database_url: str = Field(
+        "sqlite+aiosqlite:///on1builder_data.db", alias="DATABASE_URL"
+    )
 
 
 def _gather_dynamic_env_vars() -> Dict[str, Any]:
@@ -252,7 +266,9 @@ def load_settings(env_path: Optional[Path] = None) -> GlobalSettings:
         return global_settings
     except ValidationError as ve:
         logger.error(f"Configuration validation error: {ve.errors()}")
-        raise ConfigurationError("Configuration validation failed. See logs for details.") from ve
+        raise ConfigurationError(
+            "Configuration validation failed. See logs for details."
+        ) from ve
     except Exception as e:
         logger.critical(f"Failed to create GlobalSettings: {e}", exc_info=True)
         raise ConfigurationError(f"Configuration validation failed: {e}") from e

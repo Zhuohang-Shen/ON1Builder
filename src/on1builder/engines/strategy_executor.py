@@ -1,5 +1,7 @@
-# src/on1builder/engines/strategy_executor.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import json
@@ -83,14 +85,16 @@ class StrategyExecutor:
 
         self._load_weights()
         self._initialize_performance_tracking()
-        logger.info("ON1Builder StrategyExecutor initialized with ML and balance awareness.")
+        logger.info(
+            "ON1Builder StrategyExecutor initialized with ML and balance awareness."
+        )
 
     @staticmethod
     def _mean(values: List[float]) -> float:
         return sum(values) / len(values) if values else 0.0
 
     def _load_weights(self):
-        """ON1Builder weight loading with validation and migration."""
+        """ weight loading with validation and migration. """
         try:
             if self._strategy_weights_path.exists():
                 with open(self._strategy_weights_path, "r") as f:
@@ -109,11 +113,15 @@ class StrategyExecutor:
                     # Old format - direct weights
                     for strategy_name, weights_list in data.items():
                         if strategy_name in self._strategies:
-                            self._weights[strategy_name] = [float(w) for w in weights_list]
+                            self._weights[strategy_name] = [
+                                float(w) for w in weights_list
+                            ]
 
                 logger.info("Loaded strategy weights from file.")
         except (IOError, json.JSONDecodeError) as e:
-            logger.warning(f"Could not load strategy weights: {e}. Using default weights.")
+            logger.warning(
+                f"Could not load strategy weights: {e}. Using default weights."
+            )
 
         # Initialize missing weights
         for strategy_name, strategy_info in self._strategies.items():
@@ -122,7 +130,7 @@ class StrategyExecutor:
                 self._weights[strategy_name] = [1.0 for _ in range(num_functions)]
 
     def _save_weights(self):
-        """ON1Builder weight saving with metadata."""
+        """ weight saving with metadata. """
         data = {
             "version": "2.0",
             "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -152,7 +160,7 @@ class StrategyExecutor:
             logger.error(f"Failed to save strategy weights: {e}")
 
     def _initialize_performance_tracking(self):
-        """Initialize performance tracking for all strategies."""
+        """Initialize performance tracking for all strategies. """
         for strategy_name in self._strategies:
             self._strategy_performance[strategy_name] = {
                 "success_rate": 0.0,
@@ -199,10 +207,21 @@ class StrategyExecutor:
             elif not opportunity_type:
                 eligible.append(strategy_name)
 
-        logger.debug(f"Eligible strategies for balance tier '{balance_tier}': {eligible}")
+        # Require simulation unless bypassed globally
+        if not opportunity.get("simulated", False) and not settings.allow_unsimulated_trades:
+            logger.debug(
+                "Opportunity not simulated; restricting to strategies only if global bypass is enabled."
+            )
+            eligible = [] if not settings.allow_unsimulated_trades else eligible
+
+        logger.debug(
+            f"Eligible strategies for balance tier '{balance_tier}': {eligible}"
+        )
         return eligible
 
-    def _calculate_strategy_score(self, strategy_name: str, opportunity: Dict[str, Any]) -> float:
+    def _calculate_strategy_score(
+        self, strategy_name: str, opportunity: Dict[str, Any]
+    ) -> float:
         """
         Calculates a comprehensive score for strategy selection.
         """
@@ -233,7 +252,12 @@ class StrategyExecutor:
             risk_penalty = -0.1
 
         total_score = (
-            base_score + success_rate_bonus + profit_bonus + profit_fit + gas_bonus + risk_penalty
+            base_score
+            + success_rate_bonus
+            + profit_bonus
+            + profit_fit
+            + gas_bonus
+            + risk_penalty
         )
 
         logger.debug(
@@ -244,20 +268,26 @@ class StrategyExecutor:
 
         return total_score
 
-    async def _select_strategy(self, opportunity: Dict[str, Any]) -> Tuple[Optional[Callable], str]:
+    async def _select_strategy(
+        self, opportunity: Dict[str, Any]
+    ) -> Tuple[Optional[Callable], str]:
         """
         ON1Builder strategy selection with multi-factor optimization.
         """
         eligible_strategies = await self._get_eligible_strategies(opportunity)
 
         if not eligible_strategies:
-            logger.warning("No eligible strategies found for current balance tier and opportunity")
+            logger.warning(
+                "No eligible strategies found for current balance tier and opportunity"
+            )
             return None, ""
 
         # Exploration vs exploitation
         if random.random() < self._exploration_rate:
             chosen_strategy = random.choice(eligible_strategies)
-            chosen_function = random.choice(self._strategies[chosen_strategy]["functions"])
+            chosen_function = random.choice(
+                self._strategies[chosen_strategy]["functions"]
+            )
             logger.info(f"Exploring strategy: {chosen_strategy}")
             return chosen_function, chosen_strategy
 
@@ -287,12 +317,19 @@ class StrategyExecutor:
 
         # Check if we should proceed based on balance
         balance_summary = await self._balance_manager.get_balance_summary()
-        if balance_summary["emergency_mode"] and opportunity.get("expected_profit_eth", 0) < 0.001:
+        if (
+            balance_summary["emergency_mode"]
+            and opportunity.get("expected_profit_eth", 0) < 0.001
+        ):
             return {
                 "success": False,
                 "reason": "Emergency mode: skipping low-profit opportunities",
                 "balance_tier": balance_summary["balance_tier"],
             }
+
+        # Enforce simulation gate consistently
+        if not opportunity.get("simulated", False) and not settings.allow_unsimulated_trades:
+            return {"success": False, "reason": "Opportunity not simulated"}
 
         strategy_func, strategy_name = await self._select_strategy(opportunity)
         if not strategy_func:
@@ -303,7 +340,9 @@ class StrategyExecutor:
             }
 
         # ON1Builder opportunity with balance-aware parameters
-        ON1Builder_opportunity = await self._ON1Builder_opportunity_with_balance(opportunity)
+        ON1Builder_opportunity = await self._ON1Builder_opportunity_with_balance(
+            opportunity
+        )
 
         start_time = time.monotonic()
         gas_used = 0
@@ -317,7 +356,9 @@ class StrategyExecutor:
 
             # Record profit with balance manager
             if success and profit > 0:
-                await self._balance_manager.record_profit(Decimal(str(profit)), strategy_name)
+                await self._balance_manager.record_profit(
+                    Decimal(str(profit)), strategy_name
+                )
 
             # Update learning
             self._update_strategy_performance(strategy_name, success, profit, gas_used)
@@ -336,7 +377,9 @@ class StrategyExecutor:
             return {"success": False, "reason": str(e), "strategy": strategy_name}
         finally:
             execution_time = time.monotonic() - start_time
-            logger.info(f"Strategy '{strategy_name}' execution time: {execution_time:.4f}s")
+            logger.info(
+                f"Strategy '{strategy_name}' execution time: {execution_time:.4f}s"
+            )
 
     async def _ON1Builder_opportunity_with_balance(
         self, opportunity: Dict[str, Any]
@@ -364,8 +407,10 @@ class StrategyExecutor:
         # Adjust gas parameters
         expected_profit = opportunity.get("expected_profit_eth", 0)
         if expected_profit > 0:
-            gas_price, should_proceed = await self._balance_manager.calculate_optimal_gas_price(
-                Decimal(str(expected_profit))
+            gas_price, should_proceed = (
+                await self._balance_manager.calculate_optimal_gas_price(
+                    Decimal(str(expected_profit))
+                )
             )
             ON1Builder["optimal_gas_price"] = gas_price
             ON1Builder["gas_viable"] = should_proceed
@@ -375,7 +420,7 @@ class StrategyExecutor:
     def _update_strategy_performance(
         self, strategy_name: str, success: bool, profit: float, gas_used: int
     ):
-        """Updates detailed performance metrics for a strategy."""
+        """Updates detailed performance metrics for a strategy. """
         perf = self._strategy_performance[strategy_name]
 
         total_executions = perf["total_executions"]
@@ -389,19 +434,27 @@ class StrategyExecutor:
 
         # Update profit metrics
         perf["total_profit"] += profit
-        perf["avg_profit"] = (perf["avg_profit"] * total_executions + profit) / new_total
+        perf["avg_profit"] = (
+            perf["avg_profit"] * total_executions + profit
+        ) / new_total
 
         # Update gas usage
         if gas_used > 0:
-            perf["avg_gas_used"] = (perf["avg_gas_used"] * total_executions + gas_used) / new_total
+            perf["avg_gas_used"] = (
+                perf["avg_gas_used"] * total_executions + gas_used
+            ) / new_total
 
         perf["total_executions"] = new_total
         perf["last_execution"] = time.time()
 
     def _update_weights_ml(
-        self, strategy_name: str, success: bool, profit: float, opportunity: Dict[str, Any]
+        self,
+        strategy_name: str,
+        success: bool,
+        profit: float,
+        opportunity: Dict[str, Any],
     ):
-        """ON1Builder ML weight update with contextual learning."""
+        """ ML weight update with contextual learning. """
         if strategy_name not in self._weights:
             return
 
@@ -448,17 +501,23 @@ class StrategyExecutor:
             current_weights[i] = max(current_weights[i], 0.1)
 
     async def _update_ml_parameters(self):
-        """Updates ML parameters based on recent performance."""
+        """Updates ML parameters based on recent performance. """
         # Decay exploration rate over time
         self._exploration_rate *= self._decay_rate
-        self._exploration_rate = max(self._exploration_rate, 0.01)  # Minimum exploration
+        self._exploration_rate = max(
+            self._exploration_rate, 0.01
+        )  # Minimum exploration
 
         # Adjust learning rate based on overall performance
         recent_performance = self._calculate_recent_performance()
         if recent_performance < 0.5:  # Poor performance
-            self._learning_rate = min(self._learning_rate * 1.1, 0.1)  # Increase learning
+            self._learning_rate = min(
+                self._learning_rate * 1.1, 0.1
+            )  # Increase learning
         else:  # Good performance
-            self._learning_rate = max(self._learning_rate * 0.99, 0.001)  # Decrease learning
+            self._learning_rate = max(
+                self._learning_rate * 0.99, 0.001
+            )  # Decrease learning
 
         logger.info(
             f"ML parameters updated - Exploration: {self._exploration_rate:.4f}, "
@@ -466,7 +525,7 @@ class StrategyExecutor:
         )
 
     def _calculate_recent_performance(self) -> float:
-        """Calculates recent overall performance across all strategies."""
+        """Calculates recent overall performance across all strategies. """
         total_success = 0
         total_executions = 0
 
@@ -477,7 +536,7 @@ class StrategyExecutor:
         return total_success / total_executions if total_executions > 0 else 0.5
 
     async def get_strategy_report(self) -> Dict[str, Any]:
-        """Returns comprehensive strategy performance report."""
+        """Returns comprehensive strategy performance report. """
         return {
             "execution_count": self._execution_count,
             "ml_parameters": {

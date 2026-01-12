@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-# src/on1builder/utils/error_handling.py
-# flake8: noqa E501
-"""
-ON1Builder – Error Handling Utilities
-====================================
-Standardized error handling and recovery mechanisms.
-License: MIT
-"""
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 
 from __future__ import annotations
 
@@ -26,7 +21,7 @@ from .custom_exceptions import InitializationError
 
 
 class RecoveryError(Exception):
-    """Raised when error recovery attempts fail."""
+    """Raised when error recovery attempts fail. """
 
     pass
 
@@ -79,7 +74,9 @@ def with_error_handling(
                     f"Critical component {component_name} failed to initialize: {last_exception}"
                 )
 
-            logger.warning(f"[{component_name}] Using fallback value due to initialization failure")
+            logger.warning(
+                f"[{component_name}] Using fallback value due to initialization failure"
+            )
             return fallback
 
         @functools.wraps(func)
@@ -110,7 +107,9 @@ def with_error_handling(
                     f"Critical component {component_name} failed to initialize: {last_exception}"
                 )
 
-            logger.warning(f"[{component_name}] Using fallback value due to initialization failure")
+            logger.warning(
+                f"[{component_name}] Using fallback value due to initialization failure"
+            )
             return fallback
 
         # Return appropriate wrapper based on function type
@@ -152,15 +151,17 @@ async def safe_call(
 
 
 class ComponentHealthTracker:
-    """Tracks component health and provides recovery suggestions."""
+    """Tracks component health and provides recovery suggestions. """
 
     def __init__(self):
         self._health_status: Dict[str, Dict[str, Any]] = {}
         self._failure_counts: Dict[str, int] = {}
         self._recovery_strategies: Dict[str, Callable] = {}
 
-    def register_component(self, name: str, recovery_strategy: Optional[Callable] = None) -> None:
-        """Register a component for health tracking."""
+    def register_component(
+        self, name: str, recovery_strategy: Optional[Callable] = None
+    ) -> None:
+        """Register a component for health tracking. """
         self._health_status[name] = {
             "healthy": True,
             "last_check": None,
@@ -172,8 +173,10 @@ class ComponentHealthTracker:
         if recovery_strategy:
             self._recovery_strategies[name] = recovery_strategy
 
-    def report_health(self, name: str, healthy: bool, error: Optional[str] = None) -> None:
-        """Report component health status."""
+    def report_health(
+        self, name: str, healthy: bool, error: Optional[str] = None
+    ) -> None:
+        """Report component health status. """
         if name not in self._health_status:
             self.register_component(name)
 
@@ -191,13 +194,15 @@ class ComponentHealthTracker:
             self._failure_counts[name] = 0
 
     def get_unhealthy_components(self) -> Dict[str, Dict[str, Any]]:
-        """Get list of unhealthy components."""
+        """Get list of unhealthy components. """
         return {
-            name: status for name, status in self._health_status.items() if not status["healthy"]
+            name: status
+            for name, status in self._health_status.items()
+            if not status["healthy"]
         }
 
     async def attempt_recovery(self, component_name: str) -> bool:
-        """Attempt to recover a failed component."""
+        """Attempt to recover a failed component. """
         if component_name not in self._recovery_strategies:
             logger.warning(f"No recovery strategy available for {component_name}")
             return False
@@ -222,11 +227,13 @@ class ComponentHealthTracker:
             return False
 
     def get_failure_count(self, component_name: str) -> int:
-        """Get failure count for a component."""
+        """Get failure count for a component. """
         return self._failure_counts.get(component_name, 0)
 
-    def should_attempt_recovery(self, component_name: str, max_failures: int = 3) -> bool:
-        """Determine if recovery should be attempted."""
+    def should_attempt_recovery(
+        self, component_name: str, max_failures: int = 3
+    ) -> bool:
+        """Determine if recovery should be attempted. """
         return self.get_failure_count(component_name) < max_failures
 
 
@@ -235,5 +242,5 @@ _health_tracker = ComponentHealthTracker()
 
 
 def get_health_tracker() -> ComponentHealthTracker:
-    """Get the global health tracker instance."""
+    """Get the global health tracker instance. """
     return _health_tracker

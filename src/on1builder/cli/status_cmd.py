@@ -1,5 +1,7 @@
-# src/on1builder/cli/status_cmd.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import asyncio
@@ -19,7 +21,7 @@ console = Console(force_terminal=True, legacy_windows=True)
 
 
 def _api_value(name: str):
-    """Helper to safely read API keys regardless of dict/model shape."""
+    """Helper to safely read API keys regardless of dict/model shape. """
     api = getattr(settings, "api", None)
     if api is None:
         return None
@@ -29,7 +31,7 @@ def _api_value(name: str):
 
 
 def _notifications_value(name: str):
-    """Helper to safely read notification settings regardless of dict/model shape."""
+    """Helper to safely read notification settings regardless of dict/model shape. """
     notif = getattr(settings, "notifications", None)
     if notif is None:
         return None
@@ -39,7 +41,7 @@ def _notifications_value(name: str):
 
 
 def _database_value(name: str):
-    """Helper to safely read database settings regardless of dict/model shape."""
+    """Helper to safely read database settings regardless of dict/model shape. """
     db = getattr(settings, "database", None)
     if db is None:
         return None
@@ -49,7 +51,7 @@ def _database_value(name: str):
 
 
 async def check_comprehensive_status():
-    """ON1Builder async helper to perform comprehensive status checks."""
+    """ async helper to perform comprehensive status checks. """
 
     # Create main status table
     table = Table(title="ON1Builder ON1Builder System Status")
@@ -59,7 +61,9 @@ async def check_comprehensive_status():
     table.add_column("Performance", justify="right", style="yellow")
 
     with Progress(
-        SpinnerColumn(spinner_name="line"),  # ASCII spinner to avoid Windows encoding issues
+        SpinnerColumn(
+            spinner_name="line"
+        ),  # ASCII spinner to avoid Windows encoding issues
         TextColumn("[progress.description]{task.description}"),
         console=console,
     ) as progress:
@@ -74,7 +78,9 @@ async def check_comprehensive_status():
             # Get some basic stats
             try:
                 default_chain = settings.chains[0] if settings.chains else 1
-                recent_transactions = await db.get_recent_transactions(chain_id=default_chain, limit=10)
+                recent_transactions = await db.get_recent_transactions(
+                    chain_id=default_chain, limit=10
+                )
                 tx_count = len(recent_transactions)
             except:
                 tx_count = "N/A"
@@ -120,7 +126,9 @@ async def check_comprehensive_status():
                     )
 
             except Exception as e:
-                table.add_row(f"Chain {chain_id}", "Failed", f"Error: {str(e)[:50]}...", "N/A")
+                table.add_row(
+                    f"Chain {chain_id}", "Failed", f"Error: {str(e)[:50]}...", "N/A"
+                )
 
         # Check API integrations
         progress.update(task, description="Checking API integrations...")
@@ -153,7 +161,9 @@ async def check_comprehensive_status():
                 f"Level: {_notifications_value('min_level') or 'INFO'}",
             )
         else:
-            table.add_row("Notifications", "Disabled", "No channels configured", "Silent mode")
+            table.add_row(
+                "Notifications", "Disabled", "No channels configured", "Silent mode"
+            )
 
         # Configuration summary
         progress.update(task, description="Analyzing configuration...")
@@ -183,7 +193,7 @@ async def check_comprehensive_status():
 
 
 async def _show_balance_analysis():
-    """Show detailed balance analysis."""
+    """Show detailed balance analysis. """
     try:
         # Get balance info for all chains
         balance_info = []
@@ -215,7 +225,7 @@ async def _show_balance_analysis():
 
 
 async def _show_strategy_configuration():
-    """Show strategy and ML configuration."""
+    """Show strategy and ML configuration. """
     try:
         strategy_config = [
             f"Min Profit: {settings.min_profit_eth:.6f} ETH ({settings.min_profit_percentage}%)",
@@ -240,7 +250,9 @@ async def _show_strategy_configuration():
         ]
 
         strategy_panel = Panel(
-            "\n".join(strategy_config), title="  Strategy & Configuration", style="green"
+            "\n".join(strategy_config),
+            title="  Strategy & Configuration",
+            style="green",
         )
         console.print(strategy_panel)
 
@@ -270,7 +282,9 @@ def balance_command():
     async def show_balance_details():
         for chain_id in settings.chains:
             try:
-                console.print(f"\n[bold cyan]Chain {chain_id} Balance Analysis[/bold cyan]")
+                console.print(
+                    f"\n[bold cyan]Chain {chain_id} Balance Analysis[/bold cyan]"
+                )
 
                 web3 = await Web3ConnectionFactory.create_connection(chain_id)
                 balance_manager = BalanceManager(web3, settings.wallet_address)
@@ -281,14 +295,23 @@ def balance_command():
                 balance_table.add_column("Metric", style="cyan")
                 balance_table.add_column("Value", style="green")
 
-                balance_table.add_row("Current Balance", f"{summary['balance']:.6f} ETH")
-                balance_table.add_row("Balance Tier", summary["balance_tier"])
-                balance_table.add_row("Max Investment", f"{summary['max_investment']:.6f} ETH")
-                balance_table.add_row("Profit Threshold", f"{summary['profit_threshold']:.6f} ETH")
                 balance_table.add_row(
-                    "Flashloan Recommended", "Yes" if summary["flashloan_recommended"] else "No"
+                    "Current Balance", f"{summary['balance']:.6f} ETH"
                 )
-                balance_table.add_row("Emergency Mode", "YES" if summary["emergency_mode"] else "NO")
+                balance_table.add_row("Balance Tier", summary["balance_tier"])
+                balance_table.add_row(
+                    "Max Investment", f"{summary['max_investment']:.6f} ETH"
+                )
+                balance_table.add_row(
+                    "Profit Threshold", f"{summary['profit_threshold']:.6f} ETH"
+                )
+                balance_table.add_row(
+                    "Flashloan Recommended",
+                    "Yes" if summary["flashloan_recommended"] else "No",
+                )
+                balance_table.add_row(
+                    "Emergency Mode", "YES" if summary["emergency_mode"] else "NO"
+                )
 
                 console.print(balance_table)
 
@@ -322,16 +345,24 @@ def performance_command():
 
             # Analyze gas settings
             if settings.dynamic_gas_pricing:
-                perf_table.add_row("Gas Pricing", "Dynamic", "Optimized for market conditions")
+                perf_table.add_row(
+                    "Gas Pricing", "Dynamic", "Optimized for market conditions"
+                )
             else:
-                perf_table.add_row("Gas Pricing", "Static", "Consider enabling dynamic pricing")
+                perf_table.add_row(
+                    "Gas Pricing", "Static", "Consider enabling dynamic pricing"
+                )
 
             # Analyze profit settings
             if settings.dynamic_profit_scaling:
-                perf_table.add_row("Profit Scaling", "Dynamic", "Adapts to balance tier")
+                perf_table.add_row(
+                    "Profit Scaling", "Dynamic", "Adapts to balance tier"
+                )
             else:
                 perf_table.add_row(
-                    "Profit Scaling", "Static", "Enable dynamic scaling for better performance"
+                    "Profit Scaling",
+                    "Static",
+                    "Enable dynamic scaling for better performance",
                 )
 
             # Analyze ML settings
@@ -341,7 +372,9 @@ def performance_command():
                         "ML Learning", "High LR", "Consider reducing learning rate"
                     )
                 else:
-                    perf_table.add_row("ML Learning", "Optimal", "Learning rate well tuned")
+                    perf_table.add_row(
+                        "ML Learning", "Optimal", "Learning rate well tuned"
+                    )
             else:
                 perf_table.add_row(
                     "ML Learning", "Disabled", "Enable ML for better strategy selection"
@@ -354,7 +387,9 @@ def performance_command():
                         "Flashloan Risk", "High", "Consider higher profit multiplier"
                     )
                 else:
-                    perf_table.add_row("Flashloan Risk", "Conservative", "Good risk management")
+                    perf_table.add_row(
+                        "Flashloan Risk", "Conservative", "Good risk management"
+                    )
 
             console.print(perf_table)
 

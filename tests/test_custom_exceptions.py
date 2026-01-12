@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# flake8: noqa E501
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
 """
 Tests for custom exception classes.
 """
@@ -8,7 +9,7 @@ import pytest
 
 
 def test_custom_exceptions_exist():
-    """Test that custom exception classes exist and are properly defined."""
+    """Test that custom exception classes exist and are properly defined. """
     from on1builder.utils.custom_exceptions import (
         ConnectionError,
         ConfigurationError,
@@ -24,7 +25,7 @@ def test_custom_exceptions_exist():
 
 
 def test_exception_instantiation():
-    """Test that exceptions can be instantiated with messages."""
+    """Test that exceptions can be instantiated with messages. """
     from on1builder.utils.custom_exceptions import (
         ConnectionError,
         ConfigurationError,
@@ -47,7 +48,7 @@ def test_exception_instantiation():
 
 
 def test_exception_raising():
-    """Test that exceptions can be raised and caught properly."""
+    """Test that exceptions can be raised and caught properly. """
     from on1builder.utils.custom_exceptions import ConfigurationError
 
     with pytest.raises(ConfigurationError) as exc_info:

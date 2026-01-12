@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# flake8: noqa E501
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
 """
 Tests for error handling utilities.
 """
@@ -10,7 +11,7 @@ from unittest.mock import MagicMock, AsyncMock
 
 
 def test_error_handling_imports():
-    """Test that error handling modules can be imported."""
+    """Test that error handling modules can be imported. """
     from on1builder.utils.error_handling import (
         RecoveryError,
         ComponentInitializationError,
@@ -27,7 +28,7 @@ def test_error_handling_imports():
 
 
 def test_recovery_error():
-    """Test RecoveryError exception."""
+    """Test RecoveryError exception. """
     from on1builder.utils.error_handling import RecoveryError
 
     error = RecoveryError("Recovery failed")
@@ -35,7 +36,7 @@ def test_recovery_error():
 
 
 def test_component_health_tracker():
-    """Test ComponentHealthTracker basic functionality."""
+    """Test ComponentHealthTracker basic functionality. """
     from on1builder.utils.error_handling import ComponentHealthTracker
 
     tracker = ComponentHealthTracker()
@@ -63,7 +64,7 @@ def test_component_health_tracker():
 
 @pytest.mark.asyncio
 async def test_safe_call_async():
-    """Test safe_call with async functions."""
+    """Test safe_call with async functions. """
     from on1builder.utils.error_handling import safe_call
 
     async def success_func():
@@ -82,7 +83,7 @@ async def test_safe_call_async():
 
 
 def test_safe_call_sync():
-    """Test safe_call with sync functions."""
+    """Test safe_call with sync functions. """
     from on1builder.utils.error_handling import safe_call
     import asyncio
 
@@ -98,14 +99,16 @@ def test_safe_call_sync():
         assert result == "success"
 
         # Test failing call with fallback
-        result = await safe_call(failing_func, component_name="test", fallback="fallback")
+        result = await safe_call(
+            failing_func, component_name="test", fallback="fallback"
+        )
         assert result == "fallback"
 
     asyncio.run(run_test())
 
 
 def test_with_error_handling_decorator():
-    """Test with_error_handling decorator with sync functions."""
+    """Test with_error_handling decorator with sync functions. """
     from on1builder.utils.error_handling import with_error_handling
 
     @with_error_handling("test_component", fallback="default")
@@ -126,7 +129,7 @@ def test_with_error_handling_decorator():
 
 
 def test_global_health_tracker():
-    """Test global health tracker instance."""
+    """Test global health tracker instance. """
     from on1builder.utils.error_handling import get_health_tracker
 
     tracker1 = get_health_tracker()

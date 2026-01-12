@@ -1,4 +1,5 @@
-"""Behavior-first tests for MarketDataFeed without touching real networks."""
+"""Behavior-first tests for MarketDataFeed without touching real networks. """
+
 import asyncio
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -28,7 +29,9 @@ def stub_settings(monkeypatch):
 @pytest.mark.asyncio
 async def test_price_cache_and_blacklist(monkeypatch):
     feed = MarketDataFeed(DummyWeb3())
-    feed._api_manager.get_price = AsyncMock(side_effect=[1.0, None, None, None, None, None])
+    feed._api_manager.get_price = AsyncMock(
+        side_effect=[1.0, None, None, None, None, None]
+    )
 
     # First call caches the price
     price1 = await feed.get_price("ETH")
@@ -51,7 +54,8 @@ async def test_volatility_and_trend_detection(monkeypatch):
     now = datetime.now()
     # Build a gently increasing price series over the last hour
     history = [
-        (now - timedelta(minutes=60 - i * 5), Decimal("90") + Decimal(i)) for i in range(12)
+        (now - timedelta(minutes=60 - i * 5), Decimal("90") + Decimal(i))
+        for i in range(12)
     ]
     feed._price_history["ETH"] = history  # oldest first
 

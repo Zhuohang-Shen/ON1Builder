@@ -1,18 +1,30 @@
-# src/on1builder/persistence/db_models.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import datetime
 from typing import Any, Dict
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text, BigInteger, Index
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+    BigInteger,
+    Index,
+)
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
 
 class Transaction(Base):
-    """ON1Builder SQLAlchemy model for storing transaction records with comprehensive tracking."""
+    """ SQLAlchemy model for storing transaction records with comprehensive tracking. """
 
     __tablename__ = "transactions"
 
@@ -26,9 +38,13 @@ class Transaction(Base):
     gas_used = Column(BigInteger, nullable=True)
     gas_price = Column(BigInteger, nullable=True)  # Gas price in Wei
     gas_cost_eth = Column(Float, nullable=True)  # Total gas cost in ETH
-    status = Column(Boolean, nullable=True)  # True for success (1), False for failure (0)
+    status = Column(
+        Boolean, nullable=True
+    )  # True for success (1), False for failure (0)
     strategy = Column(String(50), nullable=True, index=True)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow, nullable=False, index=True)
+    timestamp = Column(
+        DateTime, default=datetime.datetime.utcnow, nullable=False, index=True
+    )
     raw_tx = Column(Text, nullable=True)
 
     # ON1Builder tracking fields
@@ -44,7 +60,7 @@ class Transaction(Base):
             setattr(self, key, value)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Converts the model instance to a dictionary."""
+        """Converts the model instance to a dictionary. """
         return {
             "id": self.id,
             "tx_hash": self.tx_hash,
@@ -67,7 +83,7 @@ class Transaction(Base):
 
 
 class ProfitRecord(Base):
-    """ON1Builder SQLAlchemy model for tracking profits with comprehensive metrics."""
+    """ SQLAlchemy model for tracking profits with comprehensive metrics. """
 
     __tablename__ = "profit_records"
 
@@ -83,7 +99,9 @@ class ProfitRecord(Base):
     base_token_address = Column(String(42), nullable=True)
     quote_token_address = Column(String(42), nullable=True)
     execution_time_s = Column(Float, nullable=True)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow, nullable=False, index=True)
+    timestamp = Column(
+        DateTime, default=datetime.datetime.utcnow, nullable=False, index=True
+    )
 
     # Strategy-specific fields
     flashloan_amount = Column(Float, nullable=True)  # Amount borrowed via flashloan
@@ -99,7 +117,7 @@ class ProfitRecord(Base):
             setattr(self, key, value)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Converts the model instance to a dictionary."""
+        """Converts the model instance to a dictionary. """
         return {
             "id": self.id,
             "tx_hash": self.tx_hash,
@@ -123,7 +141,7 @@ class ProfitRecord(Base):
 
 
 class StrategyPerformance(Base):
-    """Model for tracking strategy performance metrics over time."""
+    """Model for tracking strategy performance metrics over time. """
 
     __tablename__ = "strategy_performance"
 
@@ -154,7 +172,7 @@ class StrategyPerformance(Base):
     window_end = Column(DateTime, nullable=True)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Converts the model instance to a dictionary."""
+        """Converts the model instance to a dictionary. """
         return {
             "id": self.id,
             "strategy": self.strategy,
@@ -169,19 +187,25 @@ class StrategyPerformance(Base):
             "ml_weight": self.ml_weight,
             "confidence_score": self.confidence_score,
             "exploration_count": self.exploration_count,
-            "last_execution": self.last_execution.isoformat() if self.last_execution else None,
-            "last_updated": self.last_updated.isoformat() if self.last_updated else None,
+            "last_execution": (
+                self.last_execution.isoformat() if self.last_execution else None
+            ),
+            "last_updated": (
+                self.last_updated.isoformat() if self.last_updated else None
+            ),
         }
 
 
 class MarketCondition(Base):
-    """Model for tracking market conditions and their impact on strategy performance."""
+    """Model for tracking market conditions and their impact on strategy performance. """
 
     __tablename__ = "market_conditions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     chain_id = Column(Integer, nullable=False, index=True)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow, nullable=False, index=True)
+    timestamp = Column(
+        DateTime, default=datetime.datetime.utcnow, nullable=False, index=True
+    )
 
     # Gas market conditions
     gas_price_gwei = Column(Float, nullable=True)
@@ -202,7 +226,7 @@ class MarketCondition(Base):
     avg_success_rate = Column(Float, nullable=True)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Converts the model instance to a dictionary."""
+        """Converts the model instance to a dictionary. """
         return {
             "id": self.id,
             "chain_id": self.chain_id,
@@ -221,12 +245,22 @@ class MarketCondition(Base):
 
 
 # Create composite indexes for better query performance
-Index("idx_transactions_strategy_timestamp", Transaction.strategy, Transaction.timestamp)
+Index(
+    "idx_transactions_strategy_timestamp", Transaction.strategy, Transaction.timestamp
+)
 Index("idx_transactions_chain_status", Transaction.chain_id, Transaction.status)
-Index("idx_profit_records_strategy_timestamp", ProfitRecord.strategy, ProfitRecord.timestamp)
+Index(
+    "idx_profit_records_strategy_timestamp",
+    ProfitRecord.strategy,
+    ProfitRecord.timestamp,
+)
 Index(
     "idx_strategy_performance_strategy_chain",
     StrategyPerformance.strategy,
     StrategyPerformance.chain_id,
 )
-Index("idx_market_conditions_chain_timestamp", MarketCondition.chain_id, MarketCondition.timestamp)
+Index(
+    "idx_market_conditions_chain_timestamp",
+    MarketCondition.chain_id,
+    MarketCondition.timestamp,
+)

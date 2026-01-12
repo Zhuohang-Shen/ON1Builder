@@ -1,4 +1,5 @@
-"""Intent-focused tests for MainOrchestrator health checks without full startup."""
+"""Intent-focused tests for MainOrchestrator health checks without full startup. """
+
 import asyncio
 from datetime import datetime, timedelta
 from decimal import Decimal

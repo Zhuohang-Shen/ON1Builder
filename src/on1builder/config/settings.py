@@ -1,5 +1,7 @@
-# src/on1builder/config/settings.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import json
@@ -14,7 +16,7 @@ logger = get_logger(__name__)
 
 
 class APISettings(BaseModel):
-    """Configuration for external APIs."""
+    """Configuration for external APIs. """
 
     etherscan_api_key: Optional[str] = None
     coingecko_api_key: Optional[str] = None
@@ -24,7 +26,7 @@ class APISettings(BaseModel):
 
 
 class ContractAddressSettings(BaseModel):
-    """Manages chain-specific contract addresses, loaded from JSON strings in .env."""
+    """Manages chain-specific contract addresses, loaded from JSON strings in .env. """
 
     uniswap_v2_router: Dict[str, str] = Field(default_factory=dict)
     sushiswap_router: Dict[str, str] = Field(default_factory=dict)
@@ -33,22 +35,26 @@ class ContractAddressSettings(BaseModel):
 
     @model_validator(mode="before")
     def parse_json_strings(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """Parses fields that are expected to be JSON strings from the environment."""
+        """Parses fields that are expected to be JSON strings from the environment. """
         parsed_values = values.copy()
         for field, value in values.items():
             if isinstance(value, str) and value.strip().startswith("{"):
                 try:
                     parsed_values[field] = json.loads(value)
                 except json.JSONDecodeError:
-                    raise ValueError(f"Invalid JSON string for contract address field: {field}")
+                    raise ValueError(
+                        f"Invalid JSON string for contract address field: {field}"
+                    )
         return parsed_values
 
 
 class NotificationSettings(BaseModel):
-    """Configuration for the notification service."""
+    """Configuration for the notification service. """
 
     channels: List[str] = Field(default_factory=list)
-    min_level: str = Field(default="INFO", pattern=r"^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$")
+    min_level: str = Field(
+        default="INFO", pattern=r"^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$"
+    )
     slack_webhook_url: Optional[str] = None
     telegram_bot_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
@@ -73,13 +79,13 @@ class NotificationSettings(BaseModel):
 
 
 class DatabaseSettings(BaseModel):
-    """Configuration for the database connection."""
+    """Configuration for the database connection. """
 
     url: str = "sqlite+aiosqlite:///on1builder_data.db"
 
 
 class GlobalSettings(BaseModel):
-    """The master configuration model for the entire application."""
+    """The master configuration model for the entire application. """
 
     model_config = ConfigDict(extra="allow", case_sensitive=False)
 
@@ -101,9 +107,11 @@ class GlobalSettings(BaseModel):
     @field_validator("chains", "poa_chains", mode="before")
     @classmethod
     def split_chain_ids(cls, v):
-        """Split comma-separated chain IDs and validate them."""
+        """Split comma-separated chain IDs and validate them. """
         if isinstance(v, str):
-            chain_ids = [int(item.strip()) for item in v.split(",") if item.strip().isdigit()]
+            chain_ids = [
+                int(item.strip()) for item in v.split(",") if item.strip().isdigit()
+            ]
             if not chain_ids and v.strip():
                 raise ValueError(f"No valid chain IDs found in: {v}")
             return chain_ids
@@ -112,7 +120,7 @@ class GlobalSettings(BaseModel):
     @field_validator("wallet_address", mode="after")
     @classmethod
     def validate_wallet_address(cls, v):
-        """Validate wallet address format using the validation framework."""
+        """Validate wallet address format using the validation framework. """
         from .validation import ConfigValidator
 
         return ConfigValidator.validate_wallet_address(v)
@@ -120,7 +128,7 @@ class GlobalSettings(BaseModel):
     @field_validator("wallet_key", mode="after")
     @classmethod
     def validate_wallet_key(cls, v):
-        """Validate private key format using the validation framework."""
+        """Validate private key format using the validation framework. """
         from .validation import ConfigValidator
 
         return ConfigValidator.validate_private_key(v)
@@ -128,7 +136,7 @@ class GlobalSettings(BaseModel):
     @field_validator("chains", "poa_chains", mode="after")
     @classmethod
     def validate_chain_list(cls, v):
-        """Validate chain IDs using the validation framework."""
+        """Validate chain IDs using the validation framework. """
         if v:  # Only validate if not empty
             from .validation import ConfigValidator
 
@@ -137,7 +145,7 @@ class GlobalSettings(BaseModel):
 
     @model_validator(mode="after")
     def validate_balance_thresholds(self):
-        """Validate balance threshold ordering using the validation framework."""
+        """Validate balance threshold ordering using the validation framework. """
         from .validation import ConfigValidator
 
         ConfigValidator.validate_balance_thresholds(
@@ -149,7 +157,7 @@ class GlobalSettings(BaseModel):
 
     @model_validator(mode="after")
     def validate_gas_settings(self):
-        """Validate gas-related settings using the validation framework."""
+        """Validate gas-related settings using the validation framework. """
         from .validation import ConfigValidator
 
         ConfigValidator.validate_gas_settings(
@@ -159,7 +167,7 @@ class GlobalSettings(BaseModel):
 
     @model_validator(mode="after")
     def validate_complete_settings(self):
-        """Perform complete validation using the validation framework."""
+        """Perform complete validation using the validation framework. """
         try:
             from .validation import validate_complete_config
 
@@ -192,13 +200,46 @@ class GlobalSettings(BaseModel):
     max_gas_price_gwei: int = Field(default=200, gt=0)
     gas_price_multiplier: float = Field(default=1.1, gt=0)
     default_gas_limit: int = Field(default=500000, ge=21000)
+    allow_unsimulated_trades: bool = Field(
+        default=False,
+        description="Require opportunities to be simulated unless explicitly bypassed.",
+    )
+    simulation_backend: str = Field(
+        default="eth_call",
+        description="Simulation backend to use (eth_call, anvil, tenderly).",
+    )
+    submission_mode: str = Field(
+        default="public",
+        description="Transaction submission mode: public or private (bundles/relay).",
+    )
+    private_rpc_url: Optional[str] = Field(
+        default=None,
+        description="Optional private RPC endpoint (e.g., Flashbots Protect) used when submission_mode=private.",
+    )
+    tenderly_base_url: str = Field(
+        default="https://api.tenderly.co/api/v1",
+        description="Tenderly API base URL for simulation.",
+    )
+    tenderly_account_slug: Optional[str] = Field(
+        default=None, description="Tenderly account slug for simulation."
+    )
+    tenderly_project_slug: Optional[str] = Field(
+        default=None, description="Tenderly project slug for simulation."
+    )
+    tenderly_access_token: Optional[str] = Field(
+        default=None, description="Tenderly access token for simulation."
+    )
     fallback_gas_price_gwei: int = Field(default=50, gt=0)
     min_wallet_balance: float = Field(default=0.05, ge=0)
 
     # Strategy & Profit - ON1Builder with dynamic thresholds
     min_profit_eth: float = Field(default=0.005, ge=0)
-    min_profit_percentage: float = Field(default=0.1, ge=0)  # Minimum profit as % of investment
-    dynamic_profit_scaling: bool = Field(default=True)  # Scale profit requirements based on balance
+    min_profit_percentage: float = Field(
+        default=0.1, ge=0
+    )  # Minimum profit as % of investment
+    dynamic_profit_scaling: bool = Field(
+        default=True
+    )  # Scale profit requirements based on balance
     balance_risk_ratio: float = Field(
         default=0.3, ge=0.1, le=0.9
     )  # Max % of balance to risk per trade
@@ -222,19 +263,29 @@ class GlobalSettings(BaseModel):
     ml_learning_rate: float = Field(default=0.01, gt=0)
     ml_exploration_rate: float = Field(default=0.1, ge=0, le=1)
     ml_decay_rate: float = Field(default=0.995, gt=0, lt=1)
-    ml_update_frequency: int = Field(default=100, gt=0)  # Update weights every N transactions
+    ml_update_frequency: int = Field(
+        default=100, gt=0
+    )  # Update weights every N transactions
 
     # Balance Management
-    emergency_balance_threshold: float = Field(default=0.01, ge=0)  # Emergency stop threshold
-    low_balance_threshold: float = Field(default=0.05, ge=0)  # Switch to conservative strategies
-    high_balance_threshold: float = Field(default=1.0, ge=0)  # Enable more aggressive strategies
+    emergency_balance_threshold: float = Field(
+        default=0.01, ge=0
+    )  # Emergency stop threshold
+    low_balance_threshold: float = Field(
+        default=0.05, ge=0
+    )  # Switch to conservative strategies
+    high_balance_threshold: float = Field(
+        default=1.0, ge=0
+    )  # Enable more aggressive strategies
     profit_reinvestment_percentage: float = Field(
         default=80.0, ge=0, le=100
     )  # % of profit to reinvest
 
     # Gas Optimization
     dynamic_gas_pricing: bool = Field(default=True)
-    gas_price_percentile: int = Field(default=75, ge=10, le=95)  # Target gas price percentile
+    gas_price_percentile: int = Field(
+        default=75, ge=10, le=95
+    )  # Target gas price percentile
     max_gas_fee_percentage: float = Field(
         default=10.0, ge=1.0, le=50.0
     )  # Max gas as % of expected profit
@@ -259,7 +310,9 @@ class GlobalSettings(BaseModel):
     mev_strategies_enabled: bool = Field(default=True)
     front_running_enabled: bool = Field(default=True)
     back_running_enabled: bool = Field(default=True)
-    sandwich_attacks_enabled: bool = Field(default=False)  # Requires careful consideration
+    sandwich_attacks_enabled: bool = Field(
+        default=False
+    )  # Requires careful consideration
 
     # Risk management
     max_position_size_percent: float = Field(

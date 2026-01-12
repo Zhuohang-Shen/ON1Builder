@@ -54,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Safe configuration loading
 - No hardcoded secrets or keys
 
-## [Unreleased 2.2.0] - 2026-02-04
+## [Unreleased 2.3.0] - 2026-02-04
 
 ### Added
 - Intent-focused tests across orchestrators, transaction manager profit/safety, market data, MEV scanner resilience, nonce manager, and optional live API probes.
@@ -64,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - External API integrations drop CoinMarketCap/CryptoCompare/Infura; rely on public RPC, Binance, and keyless Coingecko, with Etherscan optional.
 - README updated (Python 3.10+, clean architecture tree, clarified test commands and public RPC usage).
 - `.env.example` refreshed with public Ethereum RPC defaults, Etherscan-only key guidance, and clearer feature toggles (including `RUN_LIVE_API_TESTS`).
-- Ignition launcher displays v2.2.0; pyproject dev/test extras modernized for current toolchain.
+- Ignition launcher displays v2.3.0; pyproject dev/test extras modernized for current toolchain.
 
 ### Planned
 - ON1Builder strategy algorithms

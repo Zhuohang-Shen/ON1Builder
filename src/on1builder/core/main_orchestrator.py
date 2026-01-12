@@ -1,5 +1,7 @@
-# src/on1builder/core/main_orchestrator.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import asyncio
@@ -52,11 +54,13 @@ class MainOrchestrator:
         logger.info("MainOrchestrator initialized successfully")
 
     async def _setup_signal_handlers(self):
-        """Sets up signal handlers for graceful shutdown."""
+        """Sets up signal handlers for graceful shutdown. """
         try:
             loop = asyncio.get_running_loop()
             for sig in (signal.SIGINT, signal.SIGTERM):
-                loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(self.stop(s)))
+                loop.add_signal_handler(
+                    sig, lambda s=sig: asyncio.create_task(self.stop(s))
+                )
             logger.debug("Signal handlers configured successfully")
         except Exception as e:
             logger.warning(f"Could not set up signal handlers: {e}")
@@ -81,7 +85,9 @@ class MainOrchestrator:
 
         except Exception as e:
             logger.critical(f"Failed to initialize configuration: {e}")
-            raise InitializationError(f"Configuration initialization failed: {e}", cause=e)
+            raise InitializationError(
+                f"Configuration initialization failed: {e}", cause=e
+            )
 
         self._is_running = True
         logger.info("Starting ON1Builder Orchestrator...")
@@ -110,18 +116,22 @@ class MainOrchestrator:
             await self._shutdown()
 
     async def _initialize_database(self):
-        """Initialize the database with error handling."""
+        """Initialize the database with error handling. """
         if not self._db_interface:
-            raise InitializationError("Database interface is not initialized", "database")
+            raise InitializationError(
+                "Database interface is not initialized", "database"
+            )
 
         try:
             await self._db_interface.initialize_db()
             logger.info("Database initialized successfully")
         except Exception as e:
-            raise InitializationError(f"Database initialization failed: {e}", "database", e)
+            raise InitializationError(
+                f"Database initialization failed: {e}", "database", e
+            )
 
     async def _initialize_workers(self):
-        """Initialize all chain workers with comprehensive error handling."""
+        """Initialize all chain workers with comprehensive error handling. """
         if not self._config.chains:
             raise InitializationError("No chains configured")
 
@@ -151,7 +161,7 @@ class MainOrchestrator:
             logger.warning(f"Failed to initialize workers for chains: {failed_chains}")
 
     async def _initialize_chain_worker(self, chain_id: int):
-        """Initialize a single chain worker and its balance manager."""
+        """Initialize a single chain worker and its balance manager. """
         worker = ChainWorker(chain_id)
         await worker.initialize()
         self._workers.append(worker)
@@ -163,7 +173,7 @@ class MainOrchestrator:
         self._balance_managers[chain_id] = balance_manager
 
     async def _start_services(self):
-        """Start all services and background tasks."""
+        """Start all services and background tasks. """
         # Initialize multi-chain orchestrator if we have multiple chains
         if len(self._workers) >= 2:
             self._multi_chain_orchestrator = MultiChainOrchestrator(self._workers)
@@ -174,23 +184,27 @@ class MainOrchestrator:
 
         # Start multi-chain orchestrator if available
         if self._multi_chain_orchestrator:
-            worker_tasks.append(asyncio.create_task(self._multi_chain_orchestrator.start()))
+            worker_tasks.append(
+                asyncio.create_task(self._multi_chain_orchestrator.start())
+            )
 
         # Start performance monitoring
-        self._performance_monitor_task = asyncio.create_task(self._performance_monitor_loop())
+        self._performance_monitor_task = asyncio.create_task(
+            self._performance_monitor_loop()
+        )
 
     def _get_startup_details(self) -> Dict[str, Any]:
-        """Get startup details for notifications."""
+        """Get startup details for notifications. """
         return {
             "active_chains": self._config.chains,
             "multi_chain_enabled": self._multi_chain_orchestrator is not None,
             "balance_managers": len(self._balance_managers),
             "startup_time": self._startup_time.isoformat(),
-            "version": "2.2.0",
+            "version": "2.3.0",
         }
 
     async def _handle_critical_error(self, error: Exception):
-        """Handle critical errors with proper notifications."""
+        """Handle critical errors with proper notifications. """
         self._error_count += 1
 
         await self._send_alert(
@@ -205,7 +219,9 @@ class MainOrchestrator:
         )
 
         if self._error_count >= self._max_consecutive_errors:
-            logger.critical(f"Maximum consecutive errors ({self._max_consecutive_errors}) reached")
+            logger.critical(
+                f"Maximum consecutive errors ({self._max_consecutive_errors}) reached"
+            )
             # Additional emergency shutdown logic could go here
 
     async def _send_alert(
@@ -216,9 +232,11 @@ class MainOrchestrator:
         level: str,
         details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Safely dispatch a notification if the service is ready."""
+        """Safely dispatch a notification if the service is ready. """
         if not self._notification_service:
-            logger.debug("Notification service not initialized; skipping alert '%s'.", title)
+            logger.debug(
+                "Notification service not initialized; skipping alert '%s'.", title
+            )
             return
 
         try:
@@ -232,14 +250,14 @@ class MainOrchestrator:
             logger.error("Failed to send alert '%s': %s", title, exc, exc_info=True)
 
     async def stop(self, sig: Optional[signal.Signals] = None):
-        """Initiates the graceful shutdown of the application."""
+        """Initiates the graceful shutdown of the application. """
         if not self._shutdown_event.is_set():
             signal_name = f" received signal {sig.name}" if sig else ""
             logger.info(f"Shutdown sequence initiated{signal_name}.")
             self._shutdown_event.set()
 
     async def _shutdown(self):
-        """Performs the actual shutdown of all workers and services."""
+        """Performs the actual shutdown of all workers and services. """
         logger.info(f"Stopping {len(self._workers)} chain workers...")
 
         # Stop performance monitoring
@@ -278,7 +296,7 @@ class MainOrchestrator:
         logger.info("ON1Builder has been shut down gracefully.")
 
     async def _performance_monitor_loop(self):
-        """Monitors overall system performance and generates periodic reports."""
+        """Monitors overall system performance and generates periodic reports. """
         while self._is_running:
             try:
                 await asyncio.sleep(PERFORMANCE_MONITORING_INTERVAL)
@@ -298,7 +316,7 @@ class MainOrchestrator:
                 await asyncio.sleep(300)  # Wait 5 minutes before retrying
 
     async def _generate_performance_report(self):
-        """Generates comprehensive performance and profit reports."""
+        """Generates comprehensive performance and profit reports. """
         try:
             total_profit = Decimal("0")
             total_trades = 0
@@ -314,13 +332,19 @@ class MainOrchestrator:
                     chain_performances[worker.chain_id] = {
                         "profit_usd": float(chain_profit),
                         "balance_eth": float(await balance_manager.get_balance("ETH")),
-                        "successful_trades": getattr(worker.tx_manager, "successful_trades", 0),
+                        "successful_trades": getattr(
+                            worker.tx_manager, "successful_trades", 0
+                        ),
                         "failed_trades": getattr(worker.tx_manager, "failed_trades", 0),
                     }
-                    total_trades += chain_performances[worker.chain_id]["successful_trades"]
+                    total_trades += chain_performances[worker.chain_id][
+                        "successful_trades"
+                    ]
 
             # Calculate success rate
-            total_failed = sum(perf["failed_trades"] for perf in chain_performances.values())
+            total_failed = sum(
+                perf["failed_trades"] for perf in chain_performances.values()
+            )
             success_rate = (
                 (total_trades / (total_trades + total_failed)) * 100
                 if (total_trades + total_failed) > 0
@@ -344,7 +368,7 @@ class MainOrchestrator:
             logger.error(f"Error generating performance report: {e}", exc_info=True)
 
     async def _check_system_health(self):
-        """Performs system health checks and alerts on issues."""
+        """Performs system health checks and alerts on issues. """
         try:
             unhealthy_chains = []
 
@@ -352,7 +376,9 @@ class MainOrchestrator:
                 # Check if worker is responsive
                 if (
                     not hasattr(worker, "last_heartbeat")
-                    or (datetime.now() - getattr(worker, "last_heartbeat", datetime.min)).seconds
+                    or (
+                        datetime.now() - getattr(worker, "last_heartbeat", datetime.min)
+                    ).seconds
                     > 300
                 ):
                     unhealthy_chains.append(worker.chain_id)
@@ -384,7 +410,7 @@ class MainOrchestrator:
             logger.error(f"Error in system health check: {e}", exc_info=True)
 
     async def _generate_final_report(self):
-        """Generates a comprehensive final report on system shutdown."""
+        """Generates a comprehensive final report on system shutdown. """
         try:
             await self._generate_performance_report()
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# flake8: noqa E501
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
 """
 Tests for path helper utilities.
 """
@@ -10,7 +11,7 @@ from unittest.mock import patch, MagicMock
 
 
 def test_get_base_dir():
-    """Test get_base_dir function."""
+    """Test get_base_dir function. """
     from on1builder.utils.path_helpers import get_base_dir
 
     # Should return a Path object
@@ -23,7 +24,7 @@ def test_get_base_dir():
 
 
 def test_get_resource_dir():
-    """Test get_resource_dir function."""
+    """Test get_resource_dir function. """
     from on1builder.utils.path_helpers import get_resource_dir
 
     resource_dir = get_resource_dir()
@@ -32,7 +33,7 @@ def test_get_resource_dir():
 
 
 def test_get_config_dir():
-    """Test get_config_dir function."""
+    """Test get_config_dir function. """
     from on1builder.utils.path_helpers import get_config_dir
 
     config_dir = get_config_dir()
@@ -41,7 +42,7 @@ def test_get_config_dir():
 
 
 def test_get_resource_path():
-    """Test get_resource_path function."""
+    """Test get_resource_path function. """
     from on1builder.utils.path_helpers import get_resource_path
 
     path = get_resource_path("abi", "test.json")
@@ -51,7 +52,7 @@ def test_get_resource_path():
 
 
 def test_get_abi_path():
-    """Test get_abi_path function."""
+    """Test get_abi_path function. """
     from on1builder.utils.path_helpers import get_abi_path
 
     # Test with .json extension
@@ -66,7 +67,7 @@ def test_get_abi_path():
 
 
 def test_get_token_data_path():
-    """Test get_token_data_path function."""
+    """Test get_token_data_path function. """
     from on1builder.utils.path_helpers import get_token_data_path
 
     path = get_token_data_path("tokens.json")
@@ -76,7 +77,7 @@ def test_get_token_data_path():
 
 
 def test_get_chain_config_path():
-    """Test get_chain_config_path function."""
+    """Test get_chain_config_path function. """
     from on1builder.utils.path_helpers import get_chain_config_path
 
     path = get_chain_config_path(1)
@@ -85,7 +86,7 @@ def test_get_chain_config_path():
 
 
 def test_get_strategy_weights_path():
-    """Test get_strategy_weights_path function."""
+    """Test get_strategy_weights_path function. """
     from on1builder.utils.path_helpers import get_strategy_weights_path
 
     path = get_strategy_weights_path()
@@ -94,7 +95,7 @@ def test_get_strategy_weights_path():
 
 
 def test_ensure_dir_exists():
-    """Test ensure_dir_exists function."""
+    """Test ensure_dir_exists function. """
     from on1builder.utils.path_helpers import ensure_dir_exists
     import tempfile
 
@@ -114,7 +115,7 @@ def test_ensure_dir_exists():
 
 
 def test_get_monitored_tokens_path_fallback():
-    """Test get_monitored_tokens_path fallback behavior."""
+    """Test get_monitored_tokens_path fallback behavior. """
     from on1builder.utils.path_helpers import get_monitored_tokens_path
 
     # Test that it works and returns a path (tests the fallback since settings module has dependencies)

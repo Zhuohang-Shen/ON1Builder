@@ -1,7 +1,9 @@
 """
 Common utilities for ON1Builder.
 """
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
 
 from .container import Container
 from .custom_exceptions import (

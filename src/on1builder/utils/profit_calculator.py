@@ -1,5 +1,7 @@
-# src/on1builder/utils/profit_calculator.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -11,18 +13,20 @@ from web3 import AsyncWeb3
 from web3.types import TxReceipt
 
 from on1builder.integrations.abi_registry import ABIRegistry
+from on1builder.integrations.external_apis import ExternalAPIManager
 from on1builder.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
 class ProfitCalculator:
-    """Advanced profit calculation with transaction log parsing and flash loan analysis."""
+    """Advanced profit calculation with transaction log parsing and flash loan analysis. """
 
     def __init__(self, web3: AsyncWeb3, settings: Optional[Any] = None):
         self._web3 = web3
         self._settings = settings
         self._abi_registry = ABIRegistry()
+        self._api_manager = ExternalAPIManager()
         self._token_decimals_cache: Dict[str, int] = {}
         self._price_cache: Dict[str, Decimal] = {}
 
@@ -80,7 +84,7 @@ class ProfitCalculator:
             return {"error": str(e)}
 
     def _calculate_gas_cost(self, receipt: TxReceipt, transaction: Any) -> Decimal:
-        """Calculate gas cost in ETH."""
+        """Calculate gas cost in ETH. """
         gas_used = receipt.gasUsed
         gas_price = transaction.get("gasPrice", 0)
 
@@ -92,7 +96,7 @@ class ProfitCalculator:
         return Decimal(gas_cost_wei) / Decimal(10**18)
 
     async def _parse_token_movements(self, logs: List[Dict]) -> List[Dict[str, Any]]:
-        """Parse transaction logs to extract token movements."""
+        """Parse transaction logs to extract token movements. """
         movements = []
 
         for log in logs:
@@ -131,7 +135,7 @@ class ProfitCalculator:
         return movements
 
     async def _parse_transfer_log(self, log: Dict) -> Optional[Dict[str, Any]]:
-        """Parse ERC20 Transfer event."""
+        """Parse ERC20 Transfer event. """
         try:
             if len(log.topics) < 3:
                 return None
@@ -158,7 +162,9 @@ class ProfitCalculator:
                 "from_address": from_address,
                 "to_address": to_address,
                 "amount": float(amount),
-                "amount_usd": float(await self._convert_token_to_usd(amount, token_symbol)),
+                "amount_usd": float(
+                    await self._convert_token_to_usd(amount, token_symbol)
+                ),
             }
 
         except Exception as e:
@@ -166,7 +172,7 @@ class ProfitCalculator:
             return None
 
     async def _parse_swap_log(self, log: Dict) -> Optional[Dict[str, Any]]:
-        """Parse DEX swap event using proper ABI decoding."""
+        """Parse DEX swap event using proper ABI decoding. """
         try:
             # Known DEX swap event signatures
             swap_signatures = {
@@ -204,11 +210,15 @@ class ProfitCalculator:
                 from eth_abi import decode_abi
 
                 # Decode data field
-                decoded_data = decode_abi(event_info["abi"], bytes.fromhex(log.data[2:]))
+                decoded_data = decode_abi(
+                    event_info["abi"], bytes.fromhex(log.data[2:])
+                )
 
                 if event_info["dex_type"] in ["uniswap_v2", "sushiswap"]:
                     # Uniswap V2/SushiSwap: (amount0In, amount1In, amount0Out, amount1Out, to)
-                    amount0_in, amount1_in, amount0_out, amount1_out, to_addr = decoded_data
+                    amount0_in, amount1_in, amount0_out, amount1_out, to_addr = (
+                        decoded_data
+                    )
 
                     return {
                         "type": "swap",
@@ -220,7 +230,9 @@ class ProfitCalculator:
                         "amount1_in": amount1_in,
                         "amount0_out": amount0_out,
                         "amount1_out": amount1_out,
-                        "to_address": to_addr.lower() if isinstance(to_addr, str) else "",
+                        "to_address": (
+                            to_addr.lower() if isinstance(to_addr, str) else ""
+                        ),
                         "log_index": log.logIndex,
                     }
 
@@ -251,7 +263,7 @@ class ProfitCalculator:
             return None
 
     async def _parse_flash_loan_log(self, log: Dict) -> Optional[Dict[str, Any]]:
-        """Parse flash loan event."""
+        """Parse flash loan event. """
         try:
             return {
                 "type": "flash_loan",
@@ -271,7 +283,7 @@ class ProfitCalculator:
         strategy_type: str,
         expected_tokens: List[str] = None,
     ) -> Dict[str, Any]:
-        """Analyze profit based on strategy type and token movements."""
+        """Analyze profit based on strategy type and token movements. """
         try:
             if self._settings is None:
                 from on1builder.config.loaders import get_settings
@@ -296,12 +308,16 @@ class ProfitCalculator:
                 # Check if tokens moved to or from our wallet
                 if movement.get("to_address", "").lower() == wallet_address:
                     # Inflow to our wallet
-                    net_changes[token_symbol] = net_changes.get(token_symbol, Decimal("0")) + amount
+                    net_changes[token_symbol] = (
+                        net_changes.get(token_symbol, Decimal("0")) + amount
+                    )
                     total_inflow_usd += amount_usd
 
                 elif movement.get("from_address", "").lower() == wallet_address:
                     # Outflow from our wallet
-                    net_changes[token_symbol] = net_changes.get(token_symbol, Decimal("0")) - amount
+                    net_changes[token_symbol] = (
+                        net_changes.get(token_symbol, Decimal("0")) - amount
+                    )
                     total_outflow_usd += amount_usd
 
             # Calculate gross profit (ignoring gas)
@@ -336,18 +352,22 @@ class ProfitCalculator:
     async def _get_strategy_specific_analysis(
         self, strategy_type: str, movements: List[Dict], net_changes: Dict[str, Decimal]
     ) -> Dict[str, Any]:
-        """Provide strategy-specific profit analysis."""
+        """Provide strategy-specific profit analysis. """
         analysis = {"strategy_type": strategy_type}
 
         try:
             if strategy_type == "arbitrage":
                 # For arbitrage, we expect to end with more of the base token
-                analysis["arbitrage_success"] = any(change > 0 for change in net_changes.values())
+                analysis["arbitrage_success"] = any(
+                    change > 0 for change in net_changes.values()
+                )
                 analysis["tokens_involved"] = list(net_changes.keys())
 
             elif strategy_type == "flash_loan":
                 # Flash loans should show borrowing and repayment in the same transaction
-                flash_loan_movements = [m for m in movements if m.get("type") == "flash_loan"]
+                flash_loan_movements = [
+                    m for m in movements if m.get("type") == "flash_loan"
+                ]
                 analysis["flash_loan_detected"] = len(flash_loan_movements) > 0
                 analysis["flash_loan_count"] = len(flash_loan_movements)
 
@@ -373,7 +393,7 @@ class ProfitCalculator:
         return analysis
 
     async def _get_token_decimals(self, token_address: str) -> int:
-        """Get token decimals with caching."""
+        """Get token decimals with caching. """
         token_address = token_address.lower()
 
         if token_address in self._token_decimals_cache:
@@ -387,7 +407,9 @@ class ProfitCalculator:
                 chain_id = None
 
             # Try to get from ABI registry first
-            token_info = self._abi_registry.get_token_info_by_address(token_address, chain_id)
+            token_info = self._abi_registry.get_token_info_by_address(
+                token_address, chain_id
+            )
             if token_info and "decimals" in token_info:
                 decimals = token_info["decimals"]
             else:
@@ -405,7 +427,8 @@ class ProfitCalculator:
                     ]
 
                     token_contract = self._web3.eth.contract(
-                        address=self._web3.to_checksum_address(token_address), abi=erc20_abi
+                        address=self._web3.to_checksum_address(token_address),
+                        abi=erc20_abi,
                     )
 
                     decimals = token_contract.functions.decimals().call()
@@ -423,8 +446,10 @@ class ProfitCalculator:
             logger.warning(f"Could not get decimals for {token_address}: {e}")
             return 18  # Default to 18 decimals
 
-    async def _convert_token_to_usd(self, amount: Decimal, token_symbol: Optional[str]) -> Decimal:
-        """Convert token amount to USD value using real-time price feeds."""
+    async def _convert_token_to_usd(
+        self, amount: Decimal, token_symbol: Optional[str]
+    ) -> Decimal:
+        """Convert token amount to USD value using real-time price feeds. """
         if not token_symbol or amount == 0:
             return Decimal("0")
 
@@ -449,7 +474,7 @@ class ProfitCalculator:
             return Decimal("0")
 
     async def _convert_eth_to_usd(self, eth_amount: Decimal) -> Decimal:
-        """Convert ETH amount to USD using real-time price."""
+        """Convert ETH amount to USD using real-time price. """
         try:
             # Get real-time ETH price
             eth_price = await self._get_token_price_usd("ETH")
@@ -464,9 +489,11 @@ class ProfitCalculator:
             return Decimal("0")
 
     async def calculate_flash_loan_profit(self, tx_hash: str) -> Dict[str, Any]:
-        """Specialized flash loan profit calculation."""
+        """Specialized flash loan profit calculation. """
         try:
-            base_analysis = await self.calculate_transaction_profit(tx_hash, "flash_loan")
+            base_analysis = await self.calculate_transaction_profit(
+                tx_hash, "flash_loan"
+            )
 
             if "error" in base_analysis:
                 return base_analysis
@@ -492,7 +519,7 @@ class ProfitCalculator:
             return {"error": str(e)}
 
     async def get_profit_summary(self, tx_hashes: List[str]) -> Dict[str, Any]:
-        """Generate profit summary for multiple transactions."""
+        """Generate profit summary for multiple transactions. """
         try:
             total_profit = Decimal("0")
             total_gas_cost = Decimal("0")
@@ -502,11 +529,17 @@ class ProfitCalculator:
 
             for tx_hash in tx_hashes:
                 try:
-                    analysis = await self.calculate_transaction_profit(tx_hash, "unknown")
+                    analysis = await self.calculate_transaction_profit(
+                        tx_hash, "unknown"
+                    )
 
                     if "error" not in analysis:
                         profit = Decimal(
-                            str(analysis.get("profit_analysis", {}).get("net_profit_usd", 0))
+                            str(
+                                analysis.get("profit_analysis", {}).get(
+                                    "net_profit_usd", 0
+                                )
+                            )
                         )
                         gas_cost = Decimal(str(analysis.get("gas_cost_usd", 0)))
                         strategy = analysis.get("strategy_type", "unknown")
@@ -520,7 +553,10 @@ class ProfitCalculator:
                             failed_trades += 1
 
                         if strategy not in strategy_profits:
-                            strategy_profits[strategy] = {"profit": Decimal("0"), "count": 0}
+                            strategy_profits[strategy] = {
+                                "profit": Decimal("0"),
+                                "count": 0,
+                            }
                         strategy_profits[strategy]["profit"] += profit
                         strategy_profits[strategy]["count"] += 1
 
@@ -528,7 +564,9 @@ class ProfitCalculator:
                     logger.error(f"Error analyzing transaction {tx_hash}: {e}")
                     failed_trades += 1
 
-            success_rate = (successful_trades / max(successful_trades + failed_trades, 1)) * 100
+            success_rate = (
+                successful_trades / max(successful_trades + failed_trades, 1)
+            ) * 100
 
             return {
                 "total_profit_usd": float(total_profit),
@@ -541,7 +579,9 @@ class ProfitCalculator:
                     strategy: {
                         "profit_usd": float(data["profit"]),
                         "trade_count": data["count"],
-                        "avg_profit_per_trade": float(data["profit"] / max(data["count"], 1)),
+                        "avg_profit_per_trade": float(
+                            data["profit"] / max(data["count"], 1)
+                        ),
                     }
                     for strategy, data in strategy_profits.items()
                 },
@@ -553,54 +593,13 @@ class ProfitCalculator:
             return {"error": str(e)}
 
     async def _get_token_price_usd(self, token_symbol: str) -> float:
-        """Get real-time token price in USD from external APIs."""
+        """Get real-time token price in USD from external APIs. """
         try:
-            # Price API endpoints
-            price_apis = [
-                f"https://api.coingecko.com/api/v3/simple/price?ids={self._get_coingecko_id(token_symbol)}&vs_currencies=usd",
-                f"https://api.coinbase.com/v2/exchange-rates?currency={token_symbol}",
-            ]
-
-            import aiohttp
-
-            async with aiohttp.ClientSession() as session:
-                for api_url in price_apis:
-                    try:
-                        async with session.get(api_url, timeout=5) as resp:
-                            if resp.status == 200:
-                                data = await resp.json()
-
-                                if "coingecko" in api_url:
-                                    coin_id = self._get_coingecko_id(token_symbol)
-                                    price = data.get(coin_id, {}).get("usd", 0)
-                                elif "coinbase" in api_url:
-                                    rates = data.get("data", {}).get("rates", {})
-                                    usd_rate = rates.get("USD", "0")
-                                    price = float(usd_rate) if usd_rate else 0
-
-                                if price > 0:
-                                    return price
-                    except Exception:
-                        continue
-
-            return 0  # Return 0 if all APIs fail
-
+            # Reuse the centralized API manager to avoid duplicated price logic and mappings.
+            price = await self._api_manager.get_price(token_symbol)
+            if price is None:
+                return 0
+            return float(price)
         except Exception as e:
             logger.debug(f"Failed to fetch price for {token_symbol}: {e}")
             return 0
-
-    def _get_coingecko_id(self, token_symbol: str) -> str:
-        """Map token symbol to CoinGecko ID."""
-        symbol_map = {
-            "ETH": "ethereum",
-            "WETH": "ethereum",
-            "BTC": "bitcoin",
-            "WBTC": "bitcoin",
-            "USDC": "usd-coin",
-            "USDT": "tether",
-            "DAI": "dai",
-            "LINK": "chainlink",
-            "UNI": "uniswap",
-            "AAVE": "aave",
-        }
-        return symbol_map.get(token_symbol.upper(), token_symbol.lower())

@@ -1,5 +1,7 @@
-# src/on1builder/utils/singleton.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import threading
@@ -12,7 +14,7 @@ logger = get_logger(__name__)
 
 
 class SingletonMeta(type):
-    """A thread-safe singleton metaclass."""
+    """A thread-safe singleton metaclass. """
 
     _instances: Dict[type, Any] = {}
     _lock: threading.Lock = threading.Lock()
@@ -34,7 +36,7 @@ class SingletonMeta(type):
         return instance
 
     def reset_instance(cls) -> None:
-        """For testing purposes, allows resetting the singleton instance."""
+        """For testing purposes, allows resetting the singleton instance. """
         with cls._lock:
             if cls in cls._instances:
                 del cls._instances[cls]
@@ -42,7 +44,7 @@ class SingletonMeta(type):
 
 
 class SingletonRegistry:
-    """A registry for managing named singleton instances, often created via factories."""
+    """A registry for managing named singleton instances, often created via factories. """
 
     _instances: Dict[str, Any] = {}
     _factories: Dict[str, Callable[..., Any]] = {}
@@ -67,7 +69,9 @@ class SingletonRegistry:
                 # Double-check locking
                 if key not in self._instances:
                     if key not in self._factories:
-                        raise KeyError(f"No factory registered for singleton key: '{key}'")
+                        raise KeyError(
+                            f"No factory registered for singleton key: '{key}'"
+                        )
 
                     factory = self._factories[key]
                     instance = factory(*args, **kwargs)
@@ -77,7 +81,7 @@ class SingletonRegistry:
         return self._instances[key]
 
     def has(self, key: str) -> bool:
-        """Checks if a singleton (instance or factory) is registered for the key."""
+        """Checks if a singleton (instance or factory) is registered for the key. """
         return key in self._instances or key in self._factories
 
     def reset(self, key: Optional[str] = None) -> None:
@@ -116,7 +120,9 @@ class SingletonRegistry:
                         shutdown_method()
                     logger.info(f"Successfully shut down singleton: '{key}'")
                 except Exception as e:
-                    logger.error(f"Error shutting down singleton '{key}': {e}", exc_info=True)
+                    logger.error(
+                        f"Error shutting down singleton '{key}': {e}", exc_info=True
+                    )
 
 
 # Global instance of the registry
@@ -124,5 +130,5 @@ _registry = SingletonRegistry()
 
 
 def get_singleton_registry() -> SingletonRegistry:
-    """Provides access to the global singleton registry."""
+    """Provides access to the global singleton registry. """
     return _registry

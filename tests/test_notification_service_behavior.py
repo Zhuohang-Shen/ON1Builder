@@ -61,7 +61,9 @@ async def test_notification_service_sends_configured_channels(monkeypatch):
     async def fake_get_session(self):
         return dummy_session
 
-    monkeypatch.setattr(NotificationService, "_get_session", fake_get_session, raising=False)
+    monkeypatch.setattr(
+        NotificationService, "_get_session", fake_get_session, raising=False
+    )
 
     async def fake_to_thread(func, *args, **kwargs):
         result = func(*args, **kwargs)
@@ -72,7 +74,9 @@ async def test_notification_service_sends_configured_channels(monkeypatch):
         sent_emails.append(msg["Subject"])
 
     monkeypatch.setattr(notification_module.asyncio, "to_thread", fake_to_thread)
-    monkeypatch.setattr(NotificationService, "_send_smtp_email", fake_send_smtp, raising=False)
+    monkeypatch.setattr(
+        NotificationService, "_send_smtp_email", fake_send_smtp, raising=False
+    )
 
     notification_service = NotificationService()
 

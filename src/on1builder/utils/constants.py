@@ -1,5 +1,6 @@
-# src/on1builder/utils/constants.py
-"""Application-wide constants for ON1Builder."""
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
 
 from __future__ import annotations
 from decimal import Decimal

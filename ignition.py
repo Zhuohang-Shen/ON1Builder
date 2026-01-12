@@ -1,5 +1,7 @@
-# ignition.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import os
@@ -39,7 +41,7 @@ class Ignition:
         self.env_file_path: Optional[Path] = self._find_env_file()
 
     def _find_env_file(self) -> Optional[Path]:
-        """Searches for a .env file in the current and parent directories."""
+        """Searches for a .env file in the current and parent directories. """
         current_dir = Path.cwd()
         for _ in range(3):
             env_path = current_dir / ".env"
@@ -49,11 +51,11 @@ class Ignition:
         return None
 
     def display_header(self):
-        """Displays the application header."""
+        """Displays the application header. """
         console.clear()
         header = Panel(
             "[bold yellow]ON1Builder Ignition[/]\n[dim]Interactive TUI Launcher[/]",
-            title="[bold]v2.2.0[/]",
+            title="[bold]v2.3.0[/]",
             border_style="yellow",
             expand=False,
         )
@@ -61,27 +63,33 @@ class Ignition:
         console.print()
 
     def display_status(self):
-        """Displays the current configuration status."""
+        """Displays the current configuration status. """
         status_table = Table(show_header=False, box=None, padding=(0, 2))
         status_table.add_column(style="cyan")
         status_table.add_column(style="green")
 
         env_status = (
-            f"[green]{self.env_file_path}[/]" if self.env_file_path else "[red]Not Found[/]"
+            f"[green]{self.env_file_path}[/]"
+            if self.env_file_path
+            else "[red]Not Found[/]"
         )
         status_table.add_row("Env File:", env_status)
 
-        console.print(Panel(status_table, title="[bold]Current Settings[/]", border_style="blue"))
+        console.print(
+            Panel(status_table, title="[bold]Current Settings[/]", border_style="blue")
+        )
         console.print()
 
     def run(self):
-        """The main loop for the interactive menu."""
+        """The main loop for the interactive menu. """
         while True:
             self.display_header()
             self.display_status()
 
             if not self.env_file_path:
-                console.print("[bold yellow]    .env file not found.[/] Please specify the path.")
+                console.print(
+                    "[bold yellow]    .env file not found.[/] Please specify the path."
+                )
                 self.configure_env_path()
                 continue
 
@@ -111,9 +119,11 @@ class Ignition:
                 break
 
     def configure_env_path(self):
-        """Prompts the user to set the path to the .env file."""
+        """Prompts the user to set the path to the .env file. """
         path_str = questionary.path(
-            "Enter the full path to your .env file:", only_files=True, validate=PathValidator
+            "Enter the full path to your .env file:",
+            only_files=True,
+            validate=PathValidator,
         ).ask()
         if path_str:
             self.env_file_path = Path(path_str)
@@ -121,7 +131,7 @@ class Ignition:
         time.sleep(1.5)
 
     def launch_bot(self):
-        """Constructs and runs the 'run start' command."""
+        """Constructs and runs the 'run start' command. """
         self.display_header()
         console.print("[bold green]  Launching ON1Builder...[/]")
         console.print("[dim]Press Ctrl+C to stop the bot at any time.[/]\n")
@@ -134,32 +144,44 @@ class Ignition:
             )
             process.wait()  # Wait for the process to complete
         except KeyboardInterrupt:
-            console.print("\n[bold yellow]Interruption detected. Sending stop signal to bot...[/]")
+            console.print(
+                "\n[bold yellow]Interruption detected. Sending stop signal to bot...[/]"
+            )
             process.terminate()
             process.wait()
         except Exception as e:
-            console.print(f"[bold red]An error occurred while launching the bot:[/] {e}")
+            console.print(
+                f"[bold red]An error occurred while launching the bot:[/] {e}"
+            )
 
-        console.print("\n[bold blue]ON1Builder has stopped. Press Enter to return to the menu.[/]")
+        console.print(
+            "\n[bold blue]ON1Builder has stopped. Press Enter to return to the menu.[/]"
+        )
         input()
 
     def check_status(self):
-        """Runs the 'status check' command."""
+        """Runs the 'status check' command. """
         self.display_header()
         command = [sys.executable, "-m", "on1builder", "status", "check"]
-        subprocess.run(command, env={**os.environ, "DOTENV_PATH": str(self.env_file_path)})
-        console.print("\n[bold blue]Status check complete. Press Enter to return to the menu.[/]")
+        subprocess.run(
+            command, env={**os.environ, "DOTENV_PATH": str(self.env_file_path)}
+        )
+        console.print(
+            "\n[bold blue]Status check complete. Press Enter to return to the menu.[/]"
+        )
         input()
 
     def view_logs(self):
-        """Displays the tail end of the main log file."""
+        """Displays the tail end of the main log file. """
         self.display_header()
         log_file = Path("logs/on1builder.log")
         if not log_file.exists():
             console.print("[bold red]Log file not found at 'logs/on1builder.log'[/]")
         else:
             console.print(
-                Panel(f"[bold]Showing last 50 lines of {log_file}[/]", border_style="blue")
+                Panel(
+                    f"[bold]Showing last 50 lines of {log_file}[/]", border_style="blue"
+                )
             )
             log_content = ""
             try:

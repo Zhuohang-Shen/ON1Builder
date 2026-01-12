@@ -1,4 +1,5 @@
-"""Behavior-heavy tests that assert end-to-end intentions rather than syntax."""
+"""Behavior-heavy tests that assert end-to-end intentions rather than syntax. """
+
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -27,10 +28,18 @@ class DummyBalanceManager:
 
 class DummyTxManager:
     async def execute_arbitrage(self, opportunity):
-        return {"success": True, "profit_eth": opportunity.get("expected_profit_eth", 0), "gas_used": 120_000}
+        return {
+            "success": True,
+            "profit_eth": opportunity.get("expected_profit_eth", 0),
+            "gas_used": 120_000,
+        }
 
     async def execute_front_run(self, opportunity):
-        return {"success": True, "profit_eth": opportunity.get("estimated_profit_eth", 0.0), "gas_used": 150_000}
+        return {
+            "success": True,
+            "profit_eth": opportunity.get("estimated_profit_eth", 0.0),
+            "gas_used": 150_000,
+        }
 
     async def execute_back_run(self, opportunity):
         return {"success": True, "profit_eth": 0.05, "gas_used": 90_000}
@@ -72,10 +81,12 @@ class DummyContracts:
 
 @pytest.mark.asyncio
 async def test_profit_calculator_tracks_net_profit_and_strategy_intent(monkeypatch):
-    """Ensure profit analysis reflects inflow/outflow, gas, and strategy signals."""
+    """Ensure profit analysis reflects inflow/outflow, gas, and strategy signals. """
     calculator = ProfitCalculator(AsyncMock(), SimpleNamespace(wallet_address="0xabc"))
     # Avoid hitting live pricing
-    monkeypatch.setattr(calculator, "_convert_eth_to_usd", AsyncMock(return_value=Decimal("20")))
+    monkeypatch.setattr(
+        calculator, "_convert_eth_to_usd", AsyncMock(return_value=Decimal("20"))
+    )
     movements = [
         {
             "type": "transfer",
@@ -110,8 +121,10 @@ async def test_profit_calculator_tracks_net_profit_and_strategy_intent(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_strategy_executor_respects_balance_tiers_and_ON1Builders_opportunities(monkeypatch, tmp_path):
-    """Validate strategy selection honors balance tiers and ON1Builders opportunities with limits."""
+async def test_strategy_executor_respects_balance_tiers_and_ON1Builders_opportunities(
+    monkeypatch, tmp_path
+):
+    """Validate strategy selection honors balance tiers and ON1Builders opportunities with limits. """
     balance_summary = {
         "balance": 2.0,
         "balance_tier": "medium",
@@ -142,7 +155,7 @@ async def test_strategy_executor_respects_balance_tiers_and_ON1Builders_opportun
 
 
 def test_strategy_executor_updates_weights_with_context():
-    """Weight updates should reward profitable executions with contextual signals."""
+    """Weight updates should reward profitable executions with contextual signals. """
     balance_manager = DummyBalanceManager(
         {
             "balance": 5.0,
@@ -157,15 +170,21 @@ def test_strategy_executor_updates_weights_with_context():
     executor = StrategyExecutor(DummyTxManager(), balance_manager)
     executor._weights["arbitrage"] = [1.0]
 
-    opportunity = {"expected_profit_eth": 0.2, "balance_tier": "medium", "gas_used": 110_000}
-    executor._update_weights_ml("arbitrage", success=True, profit=0.3, opportunity=opportunity)
+    opportunity = {
+        "expected_profit_eth": 0.2,
+        "balance_tier": "medium",
+        "gas_used": 110_000,
+    }
+    executor._update_weights_ml(
+        "arbitrage", success=True, profit=0.3, opportunity=opportunity
+    )
 
     assert executor._weights["arbitrage"][0] > 1.0
 
 
 @pytest.mark.asyncio
 async def test_txpool_scanner_identifies_mev_relevance_and_opportunities(monkeypatch):
-    """End-to-end transaction analysis should flag MEV relevance and produce opportunities."""
+    """End-to-end transaction analysis should flag MEV relevance and produce opportunities. """
     stub_settings = SimpleNamespace(
         contracts=DummyContracts(),
         chains=[1],
@@ -176,7 +195,9 @@ async def test_txpool_scanner_identifies_mev_relevance_and_opportunities(monkeyp
     monkeypatch.setattr("on1builder.monitoring.txpool_scanner.settings", stub_settings)
     monkeypatch.setattr(
         "on1builder.monitoring.txpool_scanner.ABIRegistry",
-        lambda: SimpleNamespace(get_monitored_tokens=lambda chain_id: {"ETH": "0xtoken"}),
+        lambda: SimpleNamespace(
+            get_monitored_tokens=lambda chain_id: {"ETH": "0xtoken"}
+        ),
     )
 
     scanner = TxPoolScanner(DummyWeb3(), DummyExecutor(), chain_id=1)

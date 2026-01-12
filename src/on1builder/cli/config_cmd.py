@@ -1,5 +1,7 @@
-# src/on1builder/cli/config_cmd.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import json
@@ -30,7 +32,9 @@ def show_config(
     config_dict = settings.model_dump(mode="json")
 
     # Use the ConfigRedactor utility to handle sensitive data redaction
-    redacted_config = ConfigRedactor.redact_config(config_dict, show_sensitive=show_keys)
+    redacted_config = ConfigRedactor.redact_config(
+        config_dict, show_sensitive=show_keys
+    )
 
     # Pretty print the JSON using rich
     json_str = json.dumps(redacted_config, indent=2)

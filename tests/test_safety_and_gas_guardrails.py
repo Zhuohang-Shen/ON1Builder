@@ -1,4 +1,5 @@
-"""Logic tests for safety guard and gas optimizer intent."""
+"""Logic tests for safety guard and gas optimizer intent. """
+
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -41,13 +42,26 @@ async def test_safety_guard_blocks_unsafe_tx(monkeypatch):
     tm._address = "0xabc"
     tm._balance_manager = DummyBalanceManager()
     tm._safety_guard = DummySafetyGuard(allow=False)
-    tm._account = SimpleNamespace(sign_transaction=lambda p: SimpleNamespace(rawTransaction=b"0x"))
-    tm._nonce_manager = SimpleNamespace(get_next_nonce=lambda: 1, resync_nonce=lambda: None)
+    tm._account = SimpleNamespace(
+        sign_transaction=lambda p: SimpleNamespace(rawTransaction=b"0x")
+    )
+    tm._nonce_manager = SimpleNamespace(
+        get_next_nonce=lambda: 1, resync_nonce=lambda: None
+    )
     tm._db_interface = SimpleNamespace()  # unused in these paths
     tm._notification_service = SimpleNamespace()
 
     with pytest.raises(StrategyExecutionError):
-        await tm._sign_and_send({"to": "0xdef", "value": 0, "gasPrice": 1, "gas": 21000, "nonce": 1, "chainId": 1})
+        await tm._sign_and_send(
+            {
+                "to": "0xdef",
+                "value": 0,
+                "gasPrice": 1,
+                "gas": 21000,
+                "nonce": 1,
+                "chainId": 1,
+            }
+        )
 
 
 @pytest.mark.asyncio
@@ -60,10 +74,16 @@ async def test_gas_price_rejects_when_profit_too_low(monkeypatch):
     tm._address = "0xabc"
     tm._balance_manager = DummyBalanceManager()
     tm._safety_guard = DummySafetyGuard(allow=True)
-    tm._account = SimpleNamespace(sign_transaction=lambda p: SimpleNamespace(rawTransaction=b"0x"))
-    tm._nonce_manager = SimpleNamespace(get_next_nonce=lambda: 1, resync_nonce=lambda: None)
+    tm._account = SimpleNamespace(
+        sign_transaction=lambda p: SimpleNamespace(rawTransaction=b"0x")
+    )
+    tm._nonce_manager = SimpleNamespace(
+        get_next_nonce=lambda: 1, resync_nonce=lambda: None
+    )
     tm._db_interface = SimpleNamespace()  # unused in these paths
     tm._notification_service = SimpleNamespace()
 
     with pytest.raises(Exception):
-        await tm._build_transaction("0xdef", value=0, data="0x", gas_limit=21000, gas_price=None)
+        await tm._build_transaction(
+            "0xdef", value=0, data="0x", gas_limit=21000, gas_price=None
+        )

@@ -1,5 +1,7 @@
-# src/on1builder/core/balance_manager.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import asyncio
@@ -92,10 +94,12 @@ class BalanceManager:
         # Multi-token balance tracking
         self.balances: Dict[str, Decimal] = {}
 
-        logger.info(f"ON1Builder BalanceManager initialized for wallet: {wallet_address}")
+        logger.info(
+            f"ON1Builder BalanceManager initialized for wallet: {wallet_address}"
+        )
 
     async def update_balance(self, force: bool = False) -> Decimal:
-        """ON1Builder balance update with intelligent caching."""
+        """ balance update with intelligent caching. """
         import time
 
         async with self._balance_lock:
@@ -126,9 +130,13 @@ class BalanceManager:
                 # Log significant balance changes
                 if old_balance and abs(new_balance - old_balance) > Decimal("0.01"):
                     change = new_balance - old_balance
-                    logger.info(f"Balance change: {change:+.6f} ETH (now: {new_balance:.6f} ETH)")
+                    logger.info(
+                        f"Balance change: {change:+.6f} ETH (now: {new_balance:.6f} ETH)"
+                    )
 
-                logger.debug(f"Balance updated: {new_balance:.6f} ETH (tier: {self.balance_tier})")
+                logger.debug(
+                    f"Balance updated: {new_balance:.6f} ETH (tier: {self.balance_tier})"
+                )
                 return new_balance
 
             except ON1ConnectionError:
@@ -141,7 +149,7 @@ class BalanceManager:
                 return self.current_balance
 
     def _determine_balance_tier(self, balance: Decimal) -> str:
-        """ON1Builder balance tier determination with configurable thresholds."""
+        """ balance tier determination with configurable thresholds. """
         for tier, threshold in reversed(list(BALANCE_TIER_THRESHOLDS.items())):
             if balance >= threshold:
                 return tier
@@ -152,11 +160,11 @@ class BalanceManager:
         return "dust"
 
     def _get_balance_tier(self, balance: Decimal) -> str:
-        """Compatibility wrapper for tier calculation used across the codebase."""
+        """Compatibility wrapper for tier calculation used across the codebase. """
         return self._determine_balance_tier(balance)
 
     async def _handle_tier_change(self, old_tier: str, new_tier: str):
-        """Handles balance tier changes and sends notifications."""
+        """Handles balance tier changes and sends notifications. """
         level = "INFO"
         if new_tier == "emergency":
             level = "CRITICAL"
@@ -175,7 +183,9 @@ class BalanceManager:
             },
         )
 
-    async def get_max_investment_amount(self, strategy_type: str = "standard") -> Decimal:
+    async def get_max_investment_amount(
+        self, strategy_type: str = "standard"
+    ) -> Decimal:
         """
         Returns the maximum amount that can be safely invested based on current balance and strategy.
         """
@@ -204,7 +214,10 @@ class BalanceManager:
         strategy_multiplier = strategy_multipliers.get(strategy_type, Decimal("1.0"))
 
         max_investment = (
-            self.current_balance * base_risk_ratio * tier_multiplier * strategy_multiplier
+            self.current_balance
+            * base_risk_ratio
+            * tier_multiplier
+            * strategy_multiplier
         )
 
         # Reserve gas money - estimate for 10 transactions
@@ -212,7 +225,9 @@ class BalanceManager:
 
         return max(Decimal("0"), max_investment - gas_reserve)
 
-    async def calculate_dynamic_profit_threshold(self, investment_amount: Decimal) -> Decimal:
+    async def calculate_dynamic_profit_threshold(
+        self, investment_amount: Decimal
+    ) -> Decimal:
         """
         Calculates dynamic profit thresholds based on balance tier and investment amount.
         Lower balances need any profit, higher balances can afford to be pickier.
@@ -220,7 +235,9 @@ class BalanceManager:
         await self.update_balance()
 
         base_min_profit = Decimal(str(settings.min_profit_eth))
-        percentage_threshold = Decimal(str(settings.min_profit_percentage)) / Decimal("100")
+        percentage_threshold = Decimal(str(settings.min_profit_percentage)) / Decimal(
+            "100"
+        )
 
         if not settings.dynamic_profit_scaling:
             return base_min_profit
@@ -241,7 +258,8 @@ class BalanceManager:
 
         # Use the higher of percentage-based or adjusted base, but never below 0.0001 ETH
         final_threshold = max(
-            Decimal("0.0001"), min(adjusted_base, percentage_profit)  # Minimum to cover gas
+            Decimal("0.0001"),
+            min(adjusted_base, percentage_profit),  # Minimum to cover gas
         )
 
         logger.debug(
@@ -266,12 +284,16 @@ class BalanceManager:
         # Use flashloan if we need more than 80% of our available balance
         return required_amount > (available_amount * Decimal("0.8"))
 
-    async def calculate_optimal_gas_price(self, expected_profit: Decimal) -> Tuple[int, bool]:
+    async def calculate_optimal_gas_price(
+        self, expected_profit: Decimal
+    ) -> Tuple[int, bool]:
         """
         Calculates optimal gas price based on expected profit and balance tier.
         Returns (gas_price_gwei, should_proceed)
         """
-        max_gas_percentage = Decimal(str(settings.max_gas_fee_percentage)) / Decimal("100")
+        max_gas_percentage = Decimal(str(settings.max_gas_fee_percentage)) / Decimal(
+            "100"
+        )
         max_gas_fee = expected_profit * max_gas_percentage
 
         # Estimate gas cost at current market price
@@ -279,13 +301,18 @@ class BalanceManager:
             current_gas_price = await self.web3.eth.gas_price
             gas_limit = settings.default_gas_limit
             estimated_gas_cost_wei = current_gas_price * gas_limit
-            estimated_gas_cost_eth = Decimal(str(estimated_gas_cost_wei)) / Decimal("1e18")
+            estimated_gas_cost_eth = Decimal(str(estimated_gas_cost_wei)) / Decimal(
+                "1e18"
+            )
 
             if estimated_gas_cost_eth > max_gas_fee:
                 # Gas too expensive relative to profit
                 if self.balance_tier == "emergency":
                     # In emergency mode, accept higher gas if profit still positive
-                    return int(current_gas_price / 1e9), estimated_gas_cost_eth < expected_profit
+                    return (
+                        int(current_gas_price / 1e9),
+                        estimated_gas_cost_eth < expected_profit,
+                    )
                 else:
                     return 0, False
 
@@ -329,15 +356,19 @@ class BalanceManager:
 
         # Check if it's a contract address (starts with 0x and is 42 chars long)
         if token_identifier.startswith("0x") and len(token_identifier) == 42:
-            return await self._get_token_balance_by_address(token_identifier, force_refresh)
+            return await self._get_token_balance_by_address(
+                token_identifier, force_refresh
+            )
         else:
             # Treat as token symbol
-            return await self._get_token_balance_by_symbol(token_identifier.upper(), force_refresh)
+            return await self._get_token_balance_by_symbol(
+                token_identifier.upper(), force_refresh
+            )
 
     async def _get_token_balance_by_symbol(
         self, token_symbol: str, force_refresh: bool = False
     ) -> Decimal:
-        """Get token balance using symbol lookup."""
+        """Get token balance using symbol lookup. """
         import time
 
         # Check cache first
@@ -359,7 +390,9 @@ class BalanceManager:
             # Get token contract address
             token_address = abi_registry.get_token_address(token_symbol, chain_id)
             if not token_address:
-                logger.warning(f"Token {token_symbol} not found in registry for chain {chain_id}")
+                logger.warning(
+                    f"Token {token_symbol} not found in registry for chain {chain_id}"
+                )
                 self._cache_token_balance(token_symbol, Decimal("0"))
                 return Decimal("0")
 
@@ -373,16 +406,21 @@ class BalanceManager:
             return Decimal("0")
 
     async def _get_token_balance_by_address(
-        self, token_address: str, force_refresh: bool = False, symbol: Optional[str] = None
+        self,
+        token_address: str,
+        force_refresh: bool = False,
+        symbol: Optional[str] = None,
     ) -> Decimal:
-        """Get token balance using contract address."""
+        """Get token balance using contract address. """
         try:
             from on1builder.integrations.abi_registry import ABIRegistry
 
             abi_registry = ABIRegistry()
 
             # Get ERC-20 contract ABI
-            erc20_abi = abi_registry.get_abi("ERC20") or abi_registry.get_abi("erc20_abi")
+            erc20_abi = abi_registry.get_abi("ERC20") or abi_registry.get_abi(
+                "erc20_abi"
+            )
             if not erc20_abi:
                 logger.error("ERC-20 ABI not found in registry")
                 return Decimal("0")
@@ -418,7 +456,7 @@ class BalanceManager:
             return Decimal("0")
 
     async def _get_token_decimals(self, contract) -> int:
-        """Get token decimals with fallback."""
+        """Get token decimals with fallback. """
         try:
             return await contract.functions.decimals().call()
         except Exception:
@@ -426,11 +464,11 @@ class BalanceManager:
             return 18
 
     async def _get_chain_id(self) -> int:
-        """Get chain ID with proper async handling."""
+        """Get chain ID with proper async handling. """
         try:
             chain_id = self.web3.eth.chain_id
             # Check if it's a coroutine that needs to be awaited
-            if hasattr(chain_id, '__await__'):
+            if hasattr(chain_id, "__await__"):
                 return await chain_id
             return chain_id
         except Exception as e:
@@ -438,7 +476,7 @@ class BalanceManager:
             return 1
 
     def _cache_token_balance(self, identifier: str, balance: Decimal) -> None:
-        """Cache token balance with timestamp."""
+        """Cache token balance with timestamp. """
         import time
 
         self._token_balance_cache[identifier] = (balance, time.time())
@@ -479,11 +517,13 @@ class BalanceManager:
         token: str = "ETH",
         buffer: Optional[Decimal] = None,
     ) -> Decimal:
-        """Ensure the wallet holds enough balance for the requested operation."""
+        """Ensure the wallet holds enough balance for the requested operation. """
         await self.update_balance(force=True)
         available_balance = await self.get_balance(token)
 
-        safety_buffer = buffer if buffer is not None else Decimal(str(settings.min_wallet_balance))
+        safety_buffer = (
+            buffer if buffer is not None else Decimal(str(settings.min_wallet_balance))
+        )
 
         if available_balance < required_amount + safety_buffer:
             await self.notification_service.send_alert(
@@ -509,15 +549,15 @@ class BalanceManager:
         return available_balance
 
     def get_total_profit(self) -> Decimal:
-        """Returns the total profit earned across all strategies."""
+        """Returns the total profit earned across all strategies. """
         return self._total_profit
 
     def get_session_profit(self) -> Decimal:
-        """Returns the profit earned in the current session."""
+        """Returns the profit earned in the current session. """
         return self._session_profit
 
     def get_profit_by_strategy(self) -> Dict[str, Decimal]:
-        """Returns profit breakdown by strategy."""
+        """Returns profit breakdown by strategy. """
         return self._profit_by_strategy.copy()
 
     async def record_profit(
@@ -527,7 +567,7 @@ class BalanceManager:
         context: Optional[str] = None,
         gas_cost: Decimal = Decimal("0"),
     ):
-        """ON1Builder profit recording with comprehensive analytics."""
+        """ profit recording with comprehensive analytics. """
         profit_amount = Decimal(str(profit_amount))
 
         # Backwards compatibility: third positional argument as gas cost
@@ -557,7 +597,9 @@ class BalanceManager:
         # Calculate average profit per trade
         total_trades = self._performance_metrics["total_trades"]
         if total_trades > 0:
-            self._performance_metrics["avg_profit_per_trade"] = self._total_profit / total_trades
+            self._performance_metrics["avg_profit_per_trade"] = (
+                self._total_profit / total_trades
+            )
 
         # Update max profit
         if profit_amount > self._performance_metrics["max_profit"]:
@@ -586,7 +628,7 @@ class BalanceManager:
         )
 
     def get_profit_summary(self) -> Dict[str, Any]:
-        """Get comprehensive profit summary with ON1Builder metrics."""
+        """Get comprehensive profit summary with ON1Builder metrics. """
         total_trades = self._performance_metrics["total_trades"]
         profitable_trades = self._performance_metrics["profitable_trades"]
         total_gas = self._performance_metrics["total_gas_spent"]
@@ -603,17 +645,21 @@ class BalanceManager:
             "total_trades": total_trades,
             "profitable_trades": profitable_trades,
             "win_rate_percent": round(win_rate, 2),
-            "avg_profit_per_trade": float(self._performance_metrics["avg_profit_per_trade"]),
+            "avg_profit_per_trade": float(
+                self._performance_metrics["avg_profit_per_trade"]
+            ),
             "max_profit": float(self._performance_metrics["max_profit"]),
             "total_gas_spent": float(total_gas),
             "roi_percent": round(roi_percent, 2),
-            "profit_by_strategy": {k: float(v) for k, v in self._profit_by_strategy.items()},
+            "profit_by_strategy": {
+                k: float(v) for k, v in self._profit_by_strategy.items()
+            },
             "current_balance": float(self.current_balance or 0),
             "balance_tier": self.balance_tier,
         }
 
     def get_profit_stats(self, recent_limit: int = 50) -> Dict[str, Any]:
-        """Return precise profit metrics for analytics and testing."""
+        """Return precise profit metrics for analytics and testing. """
         net_profit = self._total_profit - self._performance_metrics["total_gas_spent"]
 
         recent_entries = [
@@ -639,7 +685,7 @@ class BalanceManager:
         }
 
     def get_recent_performance(self, hours: int = 24) -> Dict[str, Any]:
-        """Get performance metrics for recent period."""
+        """Get performance metrics for recent period. """
         import time
 
         cutoff_time = time.time() - (hours * 3600)
@@ -670,7 +716,7 @@ class BalanceManager:
         }
 
     def _analyze_strategy_performance(self, trades: List[Dict]) -> Dict[str, Dict]:
-        """Analyze performance by strategy."""
+        """Analyze performance by strategy. """
         strategy_stats = {}
 
         for trade in trades:
@@ -700,17 +746,19 @@ class BalanceManager:
         return strategy_stats
 
     def get_total_balance_usd(self) -> Decimal:
-        """Calculate total portfolio value in USD (mock implementation)."""
-        # In a real implementation, this would use current market prices
-        # For now, return ETH balance as a proxy
-        eth_balance = self.current_balance or Decimal("0")
+        """Calculate total portfolio value in USD (using binance API for price data). """
+        eth_balance = self.current_balance or Decimal("0") 
 
-        # Mock ETH price of $2000
-        mock_eth_price = Decimal("2000")
+        # call binance API to get ETH price and convert balance from eth to USD 
+        from on1builder.monitoring.market_data_feed import MarketDataFeed
+        market_data = MarketDataFeed()
+        eth_price = market_data.get_token_price_usd("ETH")
+        total_usd = eth_balance * Decimal(str(eth_price))
+        return total_usd
 
-        return eth_balance * mock_eth_price
-
-    def get_balance_aware_investment_limit(self, strategy_type: str = "standard") -> Decimal:
+    def get_balance_aware_investment_limit(
+        self, strategy_type: str = "standard"
+    ) -> Decimal:
         """
         ON1Builder investment limit calculation with strategy-specific adjustments.
 
@@ -742,7 +790,9 @@ class BalanceManager:
         adjusted_amount = base_amount * strategy_multiplier
 
         # Reserve gas for multiple transactions
-        gas_reserve = Decimal("0.005") * max(5, int(self.current_balance))  # Scale with balance
+        gas_reserve = Decimal("0.005") * max(
+            5, int(self.current_balance)
+        )  # Scale with balance
 
         return max(Decimal("0"), adjusted_amount - gas_reserve)
 

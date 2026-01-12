@@ -1,13 +1,16 @@
-# src/on1builder/core/multi_chain_orchestrator.py
-# flake8: noqa E501
-from __future__ import annotations
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
 
+from __future__ import annotations
+import os
+import sys
 import asyncio
 from decimal import Decimal
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 
-from on1builder.config.loaders import settings
+from on1builder.config import settings
 from on1builder.core.chain_worker import ChainWorker
 from on1builder.core.balance_manager import BalanceManager
 from on1builder.utils.logging_config import get_logger
@@ -18,13 +21,17 @@ logger = get_logger(__name__)
 
 
 class MultiChainOrchestrator:
-    """ON1Builder multi-chain orchestrator with balance-aware arbitrage and advanced opportunity detection."""
+    """ multi-chain orchestrator with balance-aware arbitrage and advanced opportunity detection. """
 
     def __init__(self, workers: List[ChainWorker]):
         if len(workers) < 2:
-            raise ValueError("MultiChainOrchestrator requires at least two ChainWorkers.")
+            raise ValueError(
+                "MultiChainOrchestrator requires at least two ChainWorkers."
+            )
 
-        self.workers: Dict[int, ChainWorker] = {worker.chain_id: worker for worker in workers}
+        self.workers: Dict[int, ChainWorker] = {
+            worker.chain_id: worker for worker in workers
+        }
         self.balance_managers: Dict[int, BalanceManager] = {}
         self.is_running = False
         self._tasks: List[asyncio.Task] = []
@@ -47,7 +54,9 @@ class MultiChainOrchestrator:
         # Initialize balance managers for each chain
         for chain_id in self.workers.keys():
             web3 = await create_web3_instance(chain_id)
-            self.balance_managers[chain_id] = BalanceManager(web3, settings.wallet_address)
+            self.balance_managers[chain_id] = BalanceManager(
+                web3, settings.wallet_address
+            )
             await self.balance_managers[chain_id].update_balance()
 
         logger.info("Balance managers initialized for all chains")
@@ -72,18 +81,22 @@ class MultiChainOrchestrator:
         self.is_running = False
         for task in self._tasks:
             task.cancel()
-        await asyncio.gather(*[t for t in self._tasks if not t.done()], return_exceptions=True)
+        await asyncio.gather(
+            *[t for t in self._tasks if not t.done()], return_exceptions=True
+        )
         self._tasks.clear()
         logger.info("Multi-chain orchestration stopped.")
 
     async def _monitor_cross_chain_opportunities(self):
-        """ON1Builder cross-chain opportunity monitor with balance awareness."""
+        """ cross-chain opportunity monitor with balance awareness. """
         while self.is_running:
             try:
                 opportunities = await self._find_cross_chain_arbitrage()
                 if opportunities:
                     # Score and filter opportunities based on profitability and risk
-                    scored_opportunities = await self._score_opportunities(opportunities)
+                    scored_opportunities = await self._score_opportunities(
+                        opportunities
+                    )
                     viable_opportunities = [
                         opp for opp in scored_opportunities if opp["score"] > 0.7
                     ]
@@ -99,11 +112,13 @@ class MultiChainOrchestrator:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Error in cross-chain opportunity monitor: {e}", exc_info=True)
+                logger.error(
+                    f"Error in cross-chain opportunity monitor: {e}", exc_info=True
+                )
                 await asyncio.sleep(60)
 
     def _is_on_cooldown(self, token_symbol: str) -> bool:
-        """Checks if an arbitrage for a given token is on cooldown to prevent spam."""
+        """Checks if an arbitrage for a given token is on cooldown to prevent spam. """
         cooldown_period = 300
         now = asyncio.get_running_loop().time()
         if token_symbol in self._arbitrage_cooldowns:
@@ -115,7 +130,7 @@ class MultiChainOrchestrator:
         self._arbitrage_cooldowns[token_symbol] = asyncio.get_running_loop().time()
 
     async def _find_cross_chain_arbitrage(self) -> List[Dict]:
-        """ON1Builder arbitrage detection with better filtering and analysis."""
+        """ arbitrage detection with better filtering and analysis. """
         opportunities = []
         common_tokens = self._get_common_tokens()
 
@@ -132,14 +147,20 @@ class MultiChainOrchestrator:
                         # Get gas price for cost calculation
                         try:
                             gas_price = await worker.web3.eth.gas_price
-                            estimated_gas_cost = await self._estimate_arbitrage_gas_cost(gas_price)
+                            estimated_gas_cost = (
+                                await self._estimate_arbitrage_gas_cost(gas_price)
+                            )
                         except:
-                            estimated_gas_cost = Decimal("0.01")  # Conservative estimate
+                            estimated_gas_cost = Decimal(
+                                "0.01"
+                            )  # Conservative estimate
 
                         price_data[chain_id] = {
                             "price": price,
                             "gas_cost_usd": estimated_gas_cost,
-                            "liquidity_score": await self._estimate_liquidity(worker, token_symbol),
+                            "liquidity_score": await self._estimate_liquidity(
+                                worker, token_symbol
+                            ),
                         }
 
             if len(price_data) < 2:
@@ -169,8 +190,10 @@ class MultiChainOrchestrator:
         return {symbol for symbol, count in counts.items() if count >= 2}
 
     async def execute_cross_chain_arbitrage(self, opportunity: Dict):
-        """ON1Builder cross-chain arbitrage execution with balance awareness and profit tracking."""
-        logger.info(f"Executing ON1Builder cross-chain arbitrage for {opportunity['token_symbol']}")
+        """ cross-chain arbitrage execution with balance awareness and profit tracking. """
+        logger.info(
+            f"Executing ON1Builder cross-chain arbitrage for {opportunity['token_symbol']}"
+        )
 
         buy_chain = opportunity["buy_on_chain"]
         sell_chain = opportunity["sell_on_chain"]
@@ -191,7 +214,9 @@ class MultiChainOrchestrator:
         )
 
         if trade_amount_usd < Decimal("10"):
-            logger.warning(f"Trade amount too small: ${trade_amount_usd}. Skipping arbitrage.")
+            logger.warning(
+                f"Trade amount too small: ${trade_amount_usd}. Skipping arbitrage."
+            )
             return
 
         token_symbol = opportunity["token_symbol"]
@@ -209,37 +234,47 @@ class MultiChainOrchestrator:
         sell_gas_price = await self._get_optimal_gas_price(sell_worker)
 
         amount_in_wei = buy_worker.web3.to_wei(trade_amount_usd, "ether")
-        amount_out_min_wei = sell_worker.web3.to_wei((trade_amount_usd * slippage_factor), "ether")
+        amount_out_min_wei = sell_worker.web3.to_wei(
+            (trade_amount_usd * slippage_factor), "ether"
+        )
 
         buy_opp = {
             "path": buy_path,
             "dex": "uniswap_v2",
-            "amount_in_wei": amount_in_wei,
-            "amount_out_min_wei": 0,
-            "gas_price": buy_gas_price,
+            "amount_in": amount_in_wei,
+            "expected_amount_out": 0,
+            "gas_price_wei": buy_gas_price,
+            "simulated": False,
         }
 
         sell_opp = {
             "path": sell_path,
             "dex": "uniswap_v2",
-            "amount_in_wei": sell_worker.web3.to_wei(amount_to_buy, "ether"),
-            "amount_out_min_wei": amount_out_min_wei,
-            "gas_price": sell_gas_price,
+            "amount_in": sell_worker.web3.to_wei(amount_to_buy, "ether"),
+            "expected_amount_out": amount_out_min_wei,
+            "gas_price_wei": sell_gas_price,
+            "simulated": False,
         }
 
         start_time = datetime.now()
 
-        logger.info(f"Executing BUY of {amount_to_buy:.4f} {token_symbol} on chain {buy_chain}")
+        logger.info(
+            f"Executing BUY of {amount_to_buy:.4f} {token_symbol} on chain {buy_chain}"
+        )
         buy_task = asyncio.create_task(
             buy_worker.tx_manager.execute_swap(buy_opp, "cross_chain_arbitrage_buy")
         )
 
-        logger.info(f"Executing SELL of {amount_to_buy:.4f} {token_symbol} on chain {sell_chain}")
+        logger.info(
+            f"Executing SELL of {amount_to_buy:.4f} {token_symbol} on chain {sell_chain}"
+        )
         sell_task = asyncio.create_task(
             sell_worker.tx_manager.execute_swap(sell_opp, "cross_chain_arbitrage_sell")
         )
 
-        buy_result, sell_result = await asyncio.gather(buy_task, sell_task, return_exceptions=True)
+        buy_result, sell_result = await asyncio.gather(
+            buy_task, sell_task, return_exceptions=True
+        )
 
         # Handle results and calculate actual profit
         execution_time = (datetime.now() - start_time).total_seconds()
@@ -264,7 +299,9 @@ class MultiChainOrchestrator:
 
         # Send detailed notification
         success_status = (
-            "SUCCESS" if actual_profit > 0 else "LOSS" if actual_profit < 0 else "BREAK_EVEN"
+            "SUCCESS"
+            if actual_profit > 0
+            else "LOSS" if actual_profit < 0 else "BREAK_EVEN"
         )
 
         await self._notification_service.send_alert(
@@ -285,7 +322,7 @@ class MultiChainOrchestrator:
         )
 
     def _analyze_price_spreads(self, token_symbol: str, price_data: Dict) -> List[Dict]:
-        """Analyzes price spreads across chains and identifies profitable opportunities."""
+        """Analyzes price spreads across chains and identifies profitable opportunities. """
         opportunities = []
 
         chains = list(price_data.keys())
@@ -299,8 +336,12 @@ class MultiChainOrchestrator:
                     (buy_chain, sell_chain, buy_data, sell_data),
                     (sell_chain, buy_chain, sell_data, buy_data),
                 ]:
-                    spread = ((sell_info["price"] - buy_info["price"]) / buy_info["price"]) * 100
-                    total_gas_cost = buy_info["gas_cost_usd"] + sell_info["gas_cost_usd"]
+                    spread = (
+                        (sell_info["price"] - buy_info["price"]) / buy_info["price"]
+                    ) * 100
+                    total_gas_cost = (
+                        buy_info["gas_cost_usd"] + sell_info["gas_cost_usd"]
+                    )
 
                     # Minimum spread to cover gas costs and generate profit
                     min_spread_required = (
@@ -308,7 +349,9 @@ class MultiChainOrchestrator:
                     ) * 100 + settings.min_profit_percentage
 
                     if spread > min_spread_required:
-                        estimated_profit = (spread / 100) * 100 - total_gas_cost  # On $100 trade
+                        estimated_profit = (
+                            spread / 100
+                        ) * 100 - total_gas_cost  # On $100 trade
 
                         opportunity = {
                             "token_symbol": token_symbol,
@@ -320,7 +363,8 @@ class MultiChainOrchestrator:
                             "estimated_gas_cost": total_gas_cost,
                             "expected_profit_usd": estimated_profit,
                             "liquidity_score": min(
-                                buy_info["liquidity_score"], sell_info["liquidity_score"]
+                                buy_info["liquidity_score"],
+                                sell_info["liquidity_score"],
                             ),
                         }
                         opportunities.append(opportunity)
@@ -334,12 +378,14 @@ class MultiChainOrchestrator:
         return opportunities
 
     async def _score_opportunities(self, opportunities: List[Dict]) -> List[Dict]:
-        """Scores opportunities based on profitability, liquidity, and risk factors."""
+        """Scores opportunities based on profitability, liquidity, and risk factors. """
         for opp in opportunities:
             score = 0.0
 
             # Profitability score (0-0.4)
-            profit_ratio = opp["expected_profit_usd"] / max(opp["estimated_gas_cost"], 1)
+            profit_ratio = opp["expected_profit_usd"] / max(
+                opp["estimated_gas_cost"], 1
+            )
             score += min(profit_ratio / 10, 0.4)
 
             # Spread score (0-0.3)
@@ -364,10 +410,14 @@ class MultiChainOrchestrator:
         buy_balance_manager: BalanceManager,
         sell_balance_manager: BalanceManager,
     ) -> Decimal:
-        """Calculates optimal trade size based on available balances and risk management."""
+        """Calculates optimal trade size based on available balances and risk management. """
         # Get available balances
-        buy_chain_balance = await buy_balance_manager.get_balance("USDC")  # Assuming USDC for buying
-        sell_chain_balance = await sell_balance_manager.get_balance(opportunity["token_symbol"])
+        buy_chain_balance = await buy_balance_manager.get_balance(
+            "USDC"
+        )  # Assuming USDC for buying
+        sell_chain_balance = await sell_balance_manager.get_balance(
+            opportunity["token_symbol"]
+        )
 
         # Get balance-aware limits
         buy_limit = buy_balance_manager.get_balance_aware_investment_limit()
@@ -392,8 +442,10 @@ class MultiChainOrchestrator:
 
         return max(optimal_size, Decimal("10"))  # Minimum $10 trade
 
-    async def _estimate_liquidity(self, worker: ChainWorker, token_symbol: str) -> float:
-        """Estimates liquidity score for a token on a specific chain by querying DEX pools."""
+    async def _estimate_liquidity(
+        self, worker: ChainWorker, token_symbol: str
+    ) -> float:
+        """Estimates liquidity score for a token on a specific chain by querying DEX pools. """
         try:
             # Query actual liquidity from major DEXes
             total_liquidity = Decimal("0")
@@ -446,7 +498,9 @@ class MultiChainOrchestrator:
             if liquidity_sources > 0:
                 avg_liquidity = total_liquidity / liquidity_sources
                 # Convert to 0-1 score (logarithmic scale)
-                liquidity_score = min(1.0, float(avg_liquidity) / 1000000)  # $1M = 1.0 score
+                liquidity_score = min(
+                    1.0, float(avg_liquidity) / 1000000
+                )  # $1M = 1.0 score
                 return liquidity_score
 
             # Fallback to heuristic scoring if queries fail
@@ -460,7 +514,7 @@ class MultiChainOrchestrator:
             return 0.3  # Conservative estimate on error
 
     async def _estimate_arbitrage_gas_cost(self, gas_price: int) -> Decimal:
-        """Estimates gas cost for arbitrage transactions in USD."""
+        """Estimates gas cost for arbitrage transactions in USD. """
         # Typical arbitrage gas usage: ~200k gas
         gas_used = 200000
         gas_cost_wei = gas_price * gas_used
@@ -477,7 +531,7 @@ class MultiChainOrchestrator:
         return gas_cost_eth * eth_price_usd
 
     async def _get_optimal_gas_price(self, worker: ChainWorker) -> int:
-        """Gets optimal gas price for a chain considering network conditions."""
+        """Gets optimal gas price for a chain considering network conditions. """
         try:
             current_gas = await worker.web3.eth.gas_price
 
@@ -505,9 +559,11 @@ class MultiChainOrchestrator:
     async def _calculate_actual_profit(
         self, buy_result, sell_result, trade_amount_usd: Decimal, opportunity: Dict
     ) -> Decimal:
-        """Calculates actual profit from arbitrage execution."""
+        """Calculates actual profit from arbitrage execution. """
         try:
-            buy_success = not isinstance(buy_result, Exception) and buy_result.get("success", False)
+            buy_success = not isinstance(buy_result, Exception) and buy_result.get(
+                "success", False
+            )
             sell_success = not isinstance(sell_result, Exception) and sell_result.get(
                 "success", False
             )
@@ -515,7 +571,9 @@ class MultiChainOrchestrator:
             if not (buy_success and sell_success):
                 # Calculate partial loss if only one side failed
                 if buy_success or sell_success:
-                    return Decimal(str(opportunity.get("estimated_gas_cost", 0))) * Decimal("-0.5")
+                    return Decimal(
+                        str(opportunity.get("estimated_gas_cost", 0))
+                    ) * Decimal("-0.5")
                 return Decimal(str(-opportunity.get("estimated_gas_cost", 0)))
 
             # Get actual amounts from transaction receipts
@@ -524,7 +582,9 @@ class MultiChainOrchestrator:
 
             if buy_amount_out and sell_amount_out:
                 # Calculate actual profit based on amounts
-                actual_profit = Decimal(str(sell_amount_out)) - Decimal(str(trade_amount_usd))
+                actual_profit = Decimal(str(sell_amount_out)) - Decimal(
+                    str(trade_amount_usd)
+                )
                 actual_profit -= Decimal(str(opportunity.get("estimated_gas_cost", 0)))
                 return actual_profit
             else:
@@ -538,7 +598,7 @@ class MultiChainOrchestrator:
             return Decimal("0")
 
     def _extract_amount_from_result(self, result) -> Optional[Decimal]:
-        """Extracts actual output amount from transaction result by parsing logs."""
+        """Extracts actual output amount from transaction result by parsing logs. """
         try:
             if not isinstance(result, dict):
                 return None
@@ -555,12 +615,18 @@ class MultiChainOrchestrator:
 
             # Conservative best-effort: count any Transfer events as output value
             total_out = Decimal("0")
-            transfer_topic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+            transfer_topic = (
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+            )
             for log in logs:
                 if isinstance(log, dict) and log.get("topics"):
                     topics = log.get("topics", [])
                     try:
-                        topic0 = topics[0].hex() if hasattr(topics[0], "hex") else str(topics[0])
+                        topic0 = (
+                            topics[0].hex()
+                            if hasattr(topics[0], "hex")
+                            else str(topics[0])
+                        )
                     except Exception:
                         continue
                     if topic0 == transfer_topic:
@@ -577,11 +643,13 @@ class MultiChainOrchestrator:
             return None
 
     def _get_historical_success_rate(self, token_symbol: str) -> float:
-        """Gets historical success rate for arbitrage with a specific token."""
+        """Gets historical success rate for arbitrage with a specific token. """
         if not self._opportunity_history:
             return 0.5  # Default neutral score
 
-        token_history = [h for h in self._opportunity_history if h["token"] == token_symbol]
+        token_history = [
+            h for h in self._opportunity_history if h["token"] == token_symbol
+        ]
         if len(token_history) < 3:
             return 0.5
 
@@ -589,7 +657,7 @@ class MultiChainOrchestrator:
         return successful / len(token_history)
 
     async def _gas_price_monitor(self):
-        """Monitors gas prices across all chains for optimization."""
+        """Monitors gas prices across all chains for optimization. """
         while self.is_running:
             try:
                 for chain_id, worker in self.workers.items():
@@ -603,7 +671,9 @@ class MultiChainOrchestrator:
                             gas_history.pop(0)
 
                     except Exception as e:
-                        logger.error(f"Error monitoring gas price for chain {chain_id}: {e}")
+                        logger.error(
+                            f"Error monitoring gas price for chain {chain_id}: {e}"
+                        )
 
                 await asyncio.sleep(60)  # Update every minute
             except asyncio.CancelledError:
@@ -613,7 +683,7 @@ class MultiChainOrchestrator:
                 await asyncio.sleep(300)
 
     async def _balance_rebalancing_monitor(self):
-        """Monitors balances and suggests rebalancing between chains."""
+        """Monitors balances and suggests rebalancing between chains. """
         while self.is_running:
             try:
                 await asyncio.sleep(3600)  # Check every hour
@@ -632,7 +702,7 @@ class MultiChainOrchestrator:
                 await asyncio.sleep(1800)  # Retry in 30 minutes
 
     async def _analyze_balance_distribution(self):
-        """Analyzes balance distribution across chains and suggests rebalancing."""
+        """Analyzes balance distribution across chains and suggests rebalancing. """
         try:
             total_balances = {}
             chain_balances = {}
@@ -670,7 +740,7 @@ class MultiChainOrchestrator:
             logger.error(f"Error analyzing balance distribution: {e}")
 
     async def _opportunity_analysis_loop(self):
-        """Analyzes historical opportunity data for strategy optimization."""
+        """Analyzes historical opportunity data for strategy optimization. """
         while self.is_running:
             try:
                 await asyncio.sleep(3600)  # Analyze every hour
@@ -685,7 +755,7 @@ class MultiChainOrchestrator:
                 await asyncio.sleep(1800)
 
     async def _generate_opportunity_analysis(self):
-        """Generates analysis report on opportunity performance."""
+        """Generates analysis report on opportunity performance. """
         try:
             recent_opportunities = [
                 opp
@@ -697,12 +767,14 @@ class MultiChainOrchestrator:
                 return
 
             total_profit = sum(opp["actual_profit"] for opp in recent_opportunities)
-            successful_ops = [opp for opp in recent_opportunities if opp["actual_profit"] > 0]
+            successful_ops = [
+                opp for opp in recent_opportunities if opp["actual_profit"] > 0
+            ]
             success_rate = len(successful_ops) / len(recent_opportunities) * 100
 
-            avg_execution_time = sum(opp["execution_time"] for opp in recent_opportunities) / len(
-                recent_opportunities
-            )
+            avg_execution_time = sum(
+                opp["execution_time"] for opp in recent_opportunities
+            ) / len(recent_opportunities)
 
             # Best performing tokens
             token_performance = {}
@@ -737,7 +809,7 @@ class MultiChainOrchestrator:
             logger.error(f"Error generating opportunity analysis: {e}")
 
     async def _get_token_address(self, worker: ChainWorker, symbol: str) -> str:
-        """Get token contract address from symbol."""
+        """Get token contract address from symbol. """
         # Common token addresses by chain
         token_addresses = {
             1: {  # Ethereum mainnet
@@ -764,7 +836,7 @@ class MultiChainOrchestrator:
     async def _query_pool_liquidity(
         self, worker: ChainWorker, token_a: str, token_b: str, router_address: str
     ) -> Decimal:
-        """Query liquidity in a specific DEX pool."""
+        """Query liquidity in a specific DEX pool. """
         try:
             # This would use the appropriate DEX factory contract to find the pool
             # and query its reserves. For now, return a mock value based on token pair
@@ -783,7 +855,7 @@ class MultiChainOrchestrator:
             return Decimal("0")
 
     async def _get_current_eth_price(self) -> Decimal:
-        """Get current ETH price in USD from price feeds."""
+        """Get current ETH price in USD from price feeds. """
         try:
             # Try multiple price sources for reliability
             price_sources = [

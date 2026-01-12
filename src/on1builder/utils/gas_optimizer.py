@@ -1,5 +1,7 @@
-# src/on1builder/utils/gas_optimizer.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import asyncio
@@ -16,7 +18,7 @@ logger = get_logger(__name__)
 
 
 class GasOptimizer:
-    """Advanced gas optimization manager for MEV strategies."""
+    """Advanced gas optimization manager for MEV strategies. """
 
     # Class constants for better performance
     DEFAULT_PRIORITY_FEE_GWEI = 2
@@ -39,7 +41,7 @@ class GasOptimizer:
         self._update_lock = asyncio.Lock()
 
     async def initialize(self):
-        """Initialize gas optimizer with current network state."""
+        """Initialize gas optimizer with current network state. """
         async with self._update_lock:
             try:
                 # Check EIP-1559 support
@@ -72,12 +74,18 @@ class GasOptimizer:
             await self._update_gas_metrics()
 
         if self._is_eip1559_supported:
-            return await self._get_eip1559_params(priority_level, target_block_inclusion)
+            return await self._get_eip1559_params(
+                priority_level, target_block_inclusion
+            )
         else:
-            return await self._get_legacy_gas_params(priority_level, target_block_inclusion)
+            return await self._get_legacy_gas_params(
+                priority_level, target_block_inclusion
+            )
 
-    async def _get_eip1559_params(self, priority_level: str, target_blocks: int) -> Dict[str, int]:
-        """Calculate optimal EIP-1559 gas parameters."""
+    async def _get_eip1559_params(
+        self, priority_level: str, target_blocks: int
+    ) -> Dict[str, int]:
+        """Calculate optimal EIP-1559 gas parameters. """
         try:
             latest_block = await self._web3.eth.get_block("latest")
             base_fee = latest_block.get("baseFeePerGas", 0)
@@ -89,10 +97,14 @@ class GasOptimizer:
 
             # Calculate priority fee based on recent data
             if self._priority_fee_history:
-                recent_priority_fees = [fee for _, fee in self._priority_fee_history[-20:]]
+                recent_priority_fees = [
+                    fee for _, fee in self._priority_fee_history[-20:]
+                ]
                 avg_priority_fee = statistics.median(recent_priority_fees)
             else:
-                avg_priority_fee = self._web3.to_wei(self.DEFAULT_PRIORITY_FEE_GWEI, "gwei")
+                avg_priority_fee = self._web3.to_wei(
+                    self.DEFAULT_PRIORITY_FEE_GWEI, "gwei"
+                )
 
             priority_fee = int(avg_priority_fee * priority_config["multiplier"])
 
@@ -118,7 +130,7 @@ class GasOptimizer:
     async def _get_legacy_gas_params(
         self, priority_level: str, target_blocks: int
     ) -> Dict[str, int]:
-        """Calculate optimal legacy gas price."""
+        """Calculate optimal legacy gas price. """
         try:
             current_gas_price = await self._web3.eth.gas_price
 
@@ -132,7 +144,9 @@ class GasOptimizer:
                 recent_prices = [price for _, price in self._gas_history[-50:]]
                 percentile_map = {"low": 25, "normal": 50, "high": 75, "urgent": 90}
                 percentile = percentile_map.get(priority_level, 50)
-                target_price = statistics.quantiles(recent_prices, n=100)[percentile - 1]
+                target_price = statistics.quantiles(recent_prices, n=100)[
+                    percentile - 1
+                ]
             else:
                 target_price = current_gas_price
 
@@ -151,7 +165,7 @@ class GasOptimizer:
             return {"gasPrice": await self._web3.eth.gas_price, "type": 0}
 
     def _predict_base_fee(self, blocks_ahead: int) -> int:
-        """Predict base fee for future blocks based on historical data."""
+        """Predict base fee for future blocks based on historical data. """
         if not self._base_fee_history or blocks_ahead <= 0:
             return self._base_fee_history[-1][1] if self._base_fee_history else 0
 
@@ -170,7 +184,7 @@ class GasOptimizer:
         return int(min(max(predicted_fee, 0), max_predicted_fee))
 
     async def _update_gas_metrics(self):
-        """Update gas price metrics from network data with efficient data management."""
+        """Update gas price metrics from network data with efficient data management. """
         if not self._update_lock.locked():
             async with self._update_lock:
                 try:
@@ -187,14 +201,18 @@ class GasOptimizer:
                         self._base_fee_history.append((now, base_fee))
 
                         # Calculate priority fee efficiently
-                        estimated_priority = await self._calculate_priority_fee_estimate(
-                            latest_block, base_fee, current_gas_price
+                        estimated_priority = (
+                            await self._calculate_priority_fee_estimate(
+                                latest_block, base_fee, current_gas_price
+                            )
                         )
                         self._priority_fee_history.append((now, estimated_priority))
 
                     # Clean old data efficiently
                     cutoff_time = now - timedelta(hours=self.MAX_HISTORY_HOURS)
-                    self._gas_history = [(t, p) for t, p in self._gas_history if t > cutoff_time]
+                    self._gas_history = [
+                        (t, p) for t, p in self._gas_history if t > cutoff_time
+                    ]
                     self._base_fee_history = [
                         (t, p) for t, p in self._base_fee_history if t > cutoff_time
                     ]
@@ -210,7 +228,7 @@ class GasOptimizer:
     async def _calculate_priority_fee_estimate(
         self, latest_block: Dict, base_fee: int, current_gas_price: int
     ) -> int:
-        """Calculate priority fee estimate from recent transactions."""
+        """Calculate priority fee estimate from recent transactions. """
         try:
             # Get recent transactions from the block
             block_transactions = latest_block.get("transactions", [])
@@ -240,7 +258,7 @@ class GasOptimizer:
     async def estimate_transaction_cost(
         self, gas_limit: int, priority_level: str = "normal"
     ) -> Decimal:
-        """Estimate transaction cost in ETH for given gas limit and priority."""
+        """Estimate transaction cost in ETH for given gas limit and priority. """
         gas_params = await self.get_optimal_gas_params(priority_level)
 
         if gas_params.get("type") == 2:  # EIP-1559
@@ -290,7 +308,9 @@ class GasOptimizer:
                         # Calculate rate of change in base fees
                         fee_changes = []
                         for i in range(1, len(recent_fees)):
-                            change_rate = (recent_fees[i] - recent_fees[i - 1]) / recent_fees[i - 1]
+                            change_rate = (
+                                recent_fees[i] - recent_fees[i - 1]
+                            ) / recent_fees[i - 1]
                             fee_changes.append(change_rate)
 
                         if fee_changes:
@@ -298,9 +318,13 @@ class GasOptimizer:
 
                             # If fees are trending down, shorter wait
                             if avg_change_rate < -0.05:  # Decreasing by >5% per block
-                                estimated_wait = int(300 + (price_premium * 600))  # 5-15 minutes
+                                estimated_wait = int(
+                                    300 + (price_premium * 600)
+                                )  # 5-15 minutes
                             elif avg_change_rate > 0.05:  # Increasing by >5% per block
-                                estimated_wait = int(600 + (price_premium * 1800))  # 10-40 minutes
+                                estimated_wait = int(
+                                    600 + (price_premium * 1800)
+                                )  # 10-40 minutes
                             else:  # Stable
                                 estimated_wait = int(
                                     450 + (price_premium * 1200)
@@ -311,11 +335,15 @@ class GasOptimizer:
                             )  # Default 5-25 minutes
                     else:
                         # Not enough historical data, use conservative estimate
-                        estimated_wait = int(600 + (price_premium * 900))  # 10-25 minutes
+                        estimated_wait = int(
+                            600 + (price_premium * 900)
+                        )  # 10-25 minutes
 
                 except Exception as e:
                     logger.debug(f"Error calculating wait time: {e}")
-                    estimated_wait = int(300 + (price_premium * 1200))  # Fallback 5-25 minutes
+                    estimated_wait = int(
+                        300 + (price_premium * 1200)
+                    )  # Fallback 5-25 minutes
 
                 return True, estimated_wait
 
@@ -335,7 +363,9 @@ class GasOptimizer:
             "base_fee_history_count": len(self._base_fee_history),
             "priority_fee_history_count": len(self._priority_fee_history),
             "eip1559_supported": self._is_eip1559_supported,
-            "last_update": self._gas_history[-1][0].isoformat() if self._gas_history else None,
+            "last_update": (
+                self._gas_history[-1][0].isoformat() if self._gas_history else None
+            ),
         }
 
         if not self._gas_history:
@@ -350,12 +380,18 @@ class GasOptimizer:
             # Consolidated analytics combining both efficiency and recent data
             analytics.update(
                 {
-                    "current_gas_price_gwei": float(self._web3.from_wei(recent_prices[-1], "gwei")),
+                    "current_gas_price_gwei": float(
+                        self._web3.from_wei(recent_prices[-1], "gwei")
+                    ),
                     "avg_gas_price_gwei": float(
                         self._web3.from_wei(statistics.mean(recent_prices), "gwei")
                     ),
-                    "min_gas_price_gwei": float(self._web3.from_wei(min(recent_prices), "gwei")),
-                    "max_gas_price_gwei": float(self._web3.from_wei(max(recent_prices), "gwei")),
+                    "min_gas_price_gwei": float(
+                        self._web3.from_wei(min(recent_prices), "gwei")
+                    ),
+                    "max_gas_price_gwei": float(
+                        self._web3.from_wei(max(recent_prices), "gwei")
+                    ),
                     "recent_avg_gas_gwei": float(
                         self._web3.from_wei(statistics.mean(very_recent_prices), "gwei")
                     ),
@@ -366,7 +402,10 @@ class GasOptimizer:
                         self._web3.from_wei(max(very_recent_prices), "gwei")
                     ),
                     "gas_price_volatility": (
-                        float(statistics.stdev(recent_prices) / statistics.mean(recent_prices))
+                        float(
+                            statistics.stdev(recent_prices)
+                            / statistics.mean(recent_prices)
+                        )
                         if len(recent_prices) > 1
                         else 0
                     ),
@@ -386,10 +425,14 @@ class GasOptimizer:
                             self._web3.from_wei(recent_base_fees[-1], "gwei")
                         ),
                         "avg_base_fee_gwei": float(
-                            self._web3.from_wei(statistics.mean(recent_base_fees), "gwei")
+                            self._web3.from_wei(
+                                statistics.mean(recent_base_fees), "gwei"
+                            )
                         ),
                         "avg_priority_fee_gwei": float(
-                            self._web3.from_wei(statistics.mean(recent_priority_fees), "gwei")
+                            self._web3.from_wei(
+                                statistics.mean(recent_priority_fees), "gwei"
+                            )
                         ),
                     }
                 )

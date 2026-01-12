@@ -1,4 +1,5 @@
-"""Resilience tests for websocket handling in TxPoolScanner."""
+"""Resilience tests for websocket handling in TxPoolScanner. """
+
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -28,7 +29,7 @@ class DummyExec:
 
 @pytest.mark.asyncio
 async def test_websocket_subscription_failure_retries(monkeypatch):
-    """Ensure scanner handles subscription failures without crashing."""
+    """Ensure scanner handles subscription failures without crashing. """
     # Simulate settings with minimal fields
     monkeypatch.setattr(
         "on1builder.monitoring.txpool_scanner.settings",
@@ -68,12 +69,15 @@ async def test_websocket_subscription_failure_retries(monkeypatch):
 
         def connect(self):
             self.created = True
+
             async def _conn():
                 return FakeWebSocket()
+
             return _conn()
 
     # Patch module attribute directly (imported inside function normally)
     import on1builder.monitoring.txpool_scanner as scanner_mod
+
     scanner_mod.WebSocketProvider = lambda url: FakeProvider()
 
     scanner = TxPoolScanner(DummyWeb3(), DummyExec(), chain_id=1)

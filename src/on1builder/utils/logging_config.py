@@ -1,5 +1,7 @@
-# src/on1builder/utils/logging_config.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import json
@@ -38,7 +40,7 @@ def _configure_io_encoding() -> None:
 
 
 class JsonFormatter(logging.Formatter):
-    """Formats log records as JSON strings for structured logging."""
+    """Formats log records as JSON strings for structured logging. """
 
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
@@ -110,7 +112,8 @@ def setup_logging(force_setup: bool = False) -> None:
         )
     else:
         formatter = logging.Formatter(
-            "%(asctime)s [%(name)s:%(levelname)s] - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+            "%(asctime)s [%(name)s:%(levelname)s] - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
 
     console_handler.setFormatter(formatter)
@@ -125,7 +128,8 @@ def setup_logging(force_setup: bool = False) -> None:
 
             file_handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
             file_formatter = logging.Formatter(
-                "%(asctime)s [%(name)s:%(levelname)s] - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+                "%(asctime)s [%(name)s:%(levelname)s] - %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
             )
             file_handler.setFormatter(file_formatter)
             root_logger.addHandler(file_handler)
@@ -158,7 +162,7 @@ def get_logger(name: str) -> logging.Logger:
 
 
 def reset_logging() -> None:
-    """Reset logging configuration. Mainly used for testing."""
+    """Reset logging configuration. Mainly used for testing. """
     global _loggers
     _loggers.clear()
 

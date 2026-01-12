@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# flake8: noqa E501
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
 """
 Basic smoke tests for ON1Builder package.
 These tests verify that the package can be imported and basic functionality works.
@@ -11,18 +12,18 @@ from pathlib import Path
 
 
 def test_package_import():
-    """Test that the main package can be imported."""
+    """Test that the main package can be imported. """
     try:
         import on1builder
 
-        assert on1builder.__version__ == "2.2.0"
+        assert on1builder.__version__ == "2.3.0"
         assert on1builder.__author__ == "john0n1"
     except ImportError as e:
         pytest.fail(f"Failed to import on1builder package: {e}")
 
 
 def test_cli_import():
-    """Test that the CLI module can be imported."""
+    """Test that the CLI module can be imported. """
     try:
         from on1builder.__main__ import cli
 
@@ -32,7 +33,7 @@ def test_cli_import():
 
 
 def test_config_import():
-    """Test that config modules can be imported."""
+    """Test that config modules can be imported. """
     try:
         from on1builder.config.settings import GlobalSettings, APISettings
 
@@ -43,7 +44,7 @@ def test_config_import():
 
 
 def test_utils_import():
-    """Test that utility modules can be imported."""
+    """Test that utility modules can be imported. """
     try:
         from on1builder.utils.logging_config import get_logger
         from on1builder.utils.custom_exceptions import ConfigurationError
@@ -56,7 +57,7 @@ def test_utils_import():
 
 
 def test_resource_files_exist():
-    """Test that required resource files exist."""
+    """Test that required resource files exist. """
     from on1builder.utils.path_helpers import get_resource_dir
 
     resources_dir = get_resource_dir()
@@ -71,7 +72,7 @@ def test_resource_files_exist():
 
 
 def test_version_consistency():
-    """Test that version is consistent across files."""
+    """Test that version is consistent across files. """
     import on1builder
 
     # Read version from pyproject.toml
