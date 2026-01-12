@@ -452,6 +452,13 @@ class TestValidateCompleteConfig:
         assert "wallet_address" in result
         assert "chains" in result
 
+    def test_bundle_signer_key_normalization(self):
+        """Test bundle signer key is validated and normalized."""
+        config = {"bundle_signer_key": "0x" + "b" * 64}
+
+        result = validate_complete_config(config)
+        assert result["bundle_signer_key"] == "b" * 64
+
     def test_config_with_validation_error(self):
         """Test configuration with validation error."""
         config = {"wallet_address": "invalid_address"}

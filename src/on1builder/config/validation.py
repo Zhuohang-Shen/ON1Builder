@@ -299,7 +299,8 @@ class ConfigValidator:
             )
 
         valid_channels = ["slack", "telegram", "discord", "email"]
-        invalid_channels = [ch for ch in channels if ch.lower() not in valid_channels]
+        normalized = [ch.strip() for ch in channels if isinstance(ch, str) and ch.strip()]
+        invalid_channels = [ch for ch in normalized if ch.lower() not in valid_channels]
         if invalid_channels:
             raise ValidationError(
                 f"Invalid notification channels: {invalid_channels}. "
@@ -499,7 +500,7 @@ class ConfigValidator:
                         value=config_dict.get("bundle_timeout_seconds"),
                     )
             if config_dict.get("bundle_signer_key"):
-                config_dict["bundle_signer_key"] = cls.validate_private_key(
+                config_dict["bundle_signer_key"] = self.validate_private_key(
                     config_dict["bundle_signer_key"]
                 )
             if (
@@ -540,6 +541,26 @@ class ConfigValidator:
                     config_dict["ml_exploration_rate"],
                     config_dict["ml_decay_rate"],
                 )
+
+            # Validate notification settings (nested or flattened)
+            notifications = config_dict.get("notifications")
+            if notifications:
+                if isinstance(notifications, dict):
+                    channels = notifications.get("channels", [])
+                    min_level = notifications.get("min_level", "INFO")
+                else:
+                    channels = getattr(notifications, "channels", [])
+                    min_level = getattr(notifications, "min_level", "INFO")
+                self.validate_notification_settings(channels, min_level)
+
+            if "notification_channels" in config_dict or "min_notification_level" in config_dict:
+                raw_channels = config_dict.get("notification_channels", [])
+                if isinstance(raw_channels, str):
+                    channels = [item.strip() for item in raw_channels.split(",") if item.strip()]
+                else:
+                    channels = raw_channels or []
+                min_level = config_dict.get("min_notification_level", "INFO")
+                self.validate_notification_settings(channels, min_level)
 
             logger.debug("Configuration validation completed successfully")
             return config_dict
