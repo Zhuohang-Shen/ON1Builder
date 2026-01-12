@@ -1,4 +1,4 @@
-"""Logic tests for safety guard and gas optimizer intent. """
+"""Logic tests for safety guard and gas optimizer intent."""
 
 from decimal import Decimal
 from types import SimpleNamespace

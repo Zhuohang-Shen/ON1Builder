@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 
 
 def find_dotenv() -> Optional[Path]:
-    """Find the .env file by searching upwards from the current file. """
+    """Find the .env file by searching upwards from the current file."""
     current_dir = Path(__file__).resolve().parent
     for _ in range(5):  # Search up to 5 levels
         env_path = current_dir / ".env"

@@ -1,4 +1,4 @@
-"""Comprehensive tests for error_handling module. """
+"""Comprehensive tests for error_handling module."""
 
 import pytest
 import asyncio
@@ -15,10 +15,10 @@ from on1builder.utils.custom_exceptions import InitializationError
 
 
 class TestRecoveryError:
-    """Test RecoveryError exception. """
+    """Test RecoveryError exception."""
 
     def test_recovery_error_creation(self):
-        """Test RecoveryError can be created and raised. """
+        """Test RecoveryError can be created and raised."""
         error = RecoveryError("Recovery failed")
         assert str(error) == "Recovery failed"
 
@@ -27,19 +27,19 @@ class TestRecoveryError:
 
 
 class TestComponentInitializationError:
-    """Test ComponentInitializationError alias. """
+    """Test ComponentInitializationError alias."""
 
     def test_is_alias_for_initialization_error(self):
-        """Test ComponentInitializationError is alias for InitializationError. """
+        """Test ComponentInitializationError is alias for InitializationError."""
         assert ComponentInitializationError is InitializationError
 
 
 class TestWithErrorHandlingDecorator:
-    """Test with_error_handling decorator. """
+    """Test with_error_handling decorator."""
 
     @pytest.mark.asyncio
     async def test_async_function_success(self):
-        """Test decorator with successful async function. """
+        """Test decorator with successful async function."""
 
         @with_error_handling(component_name="test", critical=False)
         async def async_func(value):
@@ -51,7 +51,7 @@ class TestWithErrorHandlingDecorator:
 
     @pytest.mark.asyncio
     async def test_async_function_with_retry(self):
-        """Test decorator with retry on async function. """
+        """Test decorator with retry on async function."""
         call_count = 0
 
         @with_error_handling(component_name="test", retry_count=2, retry_delay=0.01)
@@ -68,7 +68,7 @@ class TestWithErrorHandlingDecorator:
 
     @pytest.mark.asyncio
     async def test_async_function_with_fallback(self):
-        """Test decorator with fallback on async function. """
+        """Test decorator with fallback on async function."""
 
         @with_error_handling(component_name="test", fallback="default", critical=False)
         async def async_func():
@@ -79,7 +79,7 @@ class TestWithErrorHandlingDecorator:
 
     @pytest.mark.asyncio
     async def test_async_function_critical_failure(self):
-        """Test decorator with critical failure on async function. """
+        """Test decorator with critical failure on async function."""
 
         @with_error_handling(component_name="critical_component", critical=True)
         async def async_func():
@@ -91,7 +91,7 @@ class TestWithErrorHandlingDecorator:
         assert "critical_component" in str(exc_info.value)
 
     def test_sync_function_success(self):
-        """Test decorator with successful sync function. """
+        """Test decorator with successful sync function."""
 
         @with_error_handling(component_name="sync_test", critical=False)
         def sync_func(a, b):
@@ -101,7 +101,7 @@ class TestWithErrorHandlingDecorator:
         assert result == 7
 
     def test_sync_function_with_retry(self):
-        """Test decorator with retry on sync function. """
+        """Test decorator with retry on sync function."""
         call_count = 0
 
         @with_error_handling(
@@ -119,7 +119,7 @@ class TestWithErrorHandlingDecorator:
         assert call_count == 2
 
     def test_sync_function_with_fallback(self):
-        """Test decorator with fallback on sync function. """
+        """Test decorator with fallback on sync function."""
 
         @with_error_handling(component_name="sync_test", fallback=42, critical=False)
         def sync_func():
@@ -129,7 +129,7 @@ class TestWithErrorHandlingDecorator:
         assert result == 42
 
     def test_sync_function_critical_failure(self):
-        """Test decorator with critical failure on sync function. """
+        """Test decorator with critical failure on sync function."""
 
         @with_error_handling(component_name="critical_sync", critical=True)
         def sync_func():
@@ -141,11 +141,11 @@ class TestWithErrorHandlingDecorator:
         assert "critical_sync" in str(exc_info.value)
 
     def test_preserves_function_metadata(self):
-        """Test decorator preserves function name and docstring. """
+        """Test decorator preserves function name and docstring."""
 
         @with_error_handling(component_name="test")
         def documented_func():
-            """This is a test function. """
+            """This is a test function."""
             return "result"
 
         assert documented_func.__name__ == "documented_func"
@@ -153,11 +153,11 @@ class TestWithErrorHandlingDecorator:
 
 
 class TestSafeCall:
-    """Test safe_call function. """
+    """Test safe_call function."""
 
     @pytest.mark.asyncio
     async def test_safe_call_async_success(self):
-        """Test safe_call with successful async function. """
+        """Test safe_call with successful async function."""
 
         async def async_func(x):
             return x * 3
@@ -167,7 +167,7 @@ class TestSafeCall:
 
     @pytest.mark.asyncio
     async def test_safe_call_async_with_kwargs(self):
-        """Test safe_call with async function using kwargs. """
+        """Test safe_call with async function using kwargs."""
 
         async def async_func(a, b=10):
             return a + b
@@ -177,7 +177,7 @@ class TestSafeCall:
 
     @pytest.mark.asyncio
     async def test_safe_call_async_with_error(self):
-        """Test safe_call with async function that raises error. """
+        """Test safe_call with async function that raises error."""
 
         async def async_func():
             raise ValueError("Async error")
@@ -186,7 +186,7 @@ class TestSafeCall:
         assert result == "fallback"
 
     def test_safe_call_sync_success(self):
-        """Test safe_call with successful sync function. """
+        """Test safe_call with successful sync function."""
 
         def sync_func(x, y):
             return x * y
@@ -195,7 +195,7 @@ class TestSafeCall:
         assert result == 20
 
     def test_safe_call_sync_with_error(self):
-        """Test safe_call with sync function that raises error. """
+        """Test safe_call with sync function that raises error."""
 
         def sync_func():
             raise RuntimeError("Sync error")
@@ -205,7 +205,7 @@ class TestSafeCall:
 
     @pytest.mark.asyncio
     async def test_safe_call_no_logging(self):
-        """Test safe_call with log_errors=False. """
+        """Test safe_call with log_errors=False."""
 
         async def failing_func():
             raise ValueError("Should not be logged")
@@ -224,10 +224,10 @@ class TestSafeCall:
 
 
 class TestComponentHealthTracker:
-    """Test ComponentHealthTracker class. """
+    """Test ComponentHealthTracker class."""
 
     def test_register_component(self):
-        """Test registering a component. """
+        """Test registering a component."""
         tracker = ComponentHealthTracker()
         tracker.register_component("test_component")
 
@@ -236,7 +236,7 @@ class TestComponentHealthTracker:
         assert status["error_count"] == 0
 
     def test_register_with_recovery_strategy(self):
-        """Test registering component with recovery strategy. """
+        """Test registering component with recovery strategy."""
         tracker = ComponentHealthTracker()
 
         def recovery():
@@ -246,7 +246,7 @@ class TestComponentHealthTracker:
         assert "test" in tracker._recovery_strategies
 
     def test_report_health_success(self):
-        """Test reporting healthy status. """
+        """Test reporting healthy status."""
         tracker = ComponentHealthTracker()
         tracker.register_component("test")
 
@@ -256,7 +256,7 @@ class TestComponentHealthTracker:
         assert tracker._failure_counts["test"] == 0
 
     def test_report_health_failure(self):
-        """Test reporting unhealthy status. """
+        """Test reporting unhealthy status."""
         tracker = ComponentHealthTracker()
         tracker.register_component("test")
 
@@ -268,7 +268,7 @@ class TestComponentHealthTracker:
         assert tracker._failure_counts["test"] == 1
 
     def test_report_health_auto_register(self):
-        """Test reporting health auto-registers component. """
+        """Test reporting health auto-registers component."""
         tracker = ComponentHealthTracker()
 
         tracker.report_health("new_component", healthy=False)
@@ -276,7 +276,7 @@ class TestComponentHealthTracker:
         assert "new_component" in tracker._health_status
 
     def test_get_unhealthy_components(self):
-        """Test getting unhealthy components. """
+        """Test getting unhealthy components."""
         tracker = ComponentHealthTracker()
         tracker.register_component("healthy")
         tracker.register_component("unhealthy")
@@ -291,7 +291,7 @@ class TestComponentHealthTracker:
 
     @pytest.mark.asyncio
     async def test_attempt_recovery_async(self):
-        """Test recovery with async strategy. """
+        """Test recovery with async strategy."""
         tracker = ComponentHealthTracker()
 
         async def async_recovery():
@@ -307,7 +307,7 @@ class TestComponentHealthTracker:
 
     @pytest.mark.asyncio
     async def test_attempt_recovery_sync(self):
-        """Test recovery with sync strategy. """
+        """Test recovery with sync strategy."""
         tracker = ComponentHealthTracker()
 
         def sync_recovery():
@@ -321,7 +321,7 @@ class TestComponentHealthTracker:
 
     @pytest.mark.asyncio
     async def test_attempt_recovery_no_strategy(self):
-        """Test recovery without strategy. """
+        """Test recovery without strategy."""
         tracker = ComponentHealthTracker()
         tracker.register_component("test")
 
@@ -331,7 +331,7 @@ class TestComponentHealthTracker:
 
     @pytest.mark.asyncio
     async def test_attempt_recovery_failure(self):
-        """Test recovery strategy that fails. """
+        """Test recovery strategy that fails."""
         tracker = ComponentHealthTracker()
 
         def failing_recovery():
@@ -345,7 +345,7 @@ class TestComponentHealthTracker:
 
     @pytest.mark.asyncio
     async def test_attempt_recovery_exception(self):
-        """Test recovery strategy that raises exception. """
+        """Test recovery strategy that raises exception."""
         tracker = ComponentHealthTracker()
 
         def error_recovery():
@@ -358,7 +358,7 @@ class TestComponentHealthTracker:
         assert result is False
 
     def test_get_failure_count(self):
-        """Test getting failure count. """
+        """Test getting failure count."""
         tracker = ComponentHealthTracker()
         tracker.register_component("test")
 
@@ -368,7 +368,7 @@ class TestComponentHealthTracker:
         assert tracker.get_failure_count("test") == 2
 
     def test_failure_count_reset_on_success(self):
-        """Test failure count resets on successful health report. """
+        """Test failure count resets on successful health report."""
         tracker = ComponentHealthTracker()
         tracker.register_component("test")
 
@@ -379,7 +379,7 @@ class TestComponentHealthTracker:
         assert tracker.get_failure_count("test") == 0
 
     def test_should_attempt_recovery(self):
-        """Test should_attempt_recovery logic. """
+        """Test should_attempt_recovery logic."""
         tracker = ComponentHealthTracker()
         tracker.register_component("test")
 
@@ -393,10 +393,10 @@ class TestComponentHealthTracker:
 
 
 class TestGlobalHealthTracker:
-    """Test global health tracker instance. """
+    """Test global health tracker instance."""
 
     def test_get_health_tracker_returns_singleton(self):
-        """Test get_health_tracker returns same instance. """
+        """Test get_health_tracker returns same instance."""
         tracker1 = get_health_tracker()
         tracker2 = get_health_tracker()
 

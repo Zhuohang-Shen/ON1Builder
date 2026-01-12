@@ -1,4 +1,4 @@
-"""Resilience tests for websocket handling in TxPoolScanner. """
+"""Resilience tests for websocket handling in TxPoolScanner."""
 
 import asyncio
 from types import SimpleNamespace
@@ -29,7 +29,7 @@ class DummyExec:
 
 @pytest.mark.asyncio
 async def test_websocket_subscription_failure_retries(monkeypatch):
-    """Ensure scanner handles subscription failures without crashing. """
+    """Ensure scanner handles subscription failures without crashing."""
     # Simulate settings with minimal fields
     monkeypatch.setattr(
         "on1builder.monitoring.txpool_scanner.settings",

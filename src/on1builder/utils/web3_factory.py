@@ -31,7 +31,7 @@ logger = get_logger(__name__)
 
 
 class Web3ConnectionFactory:
-    """A factory for creating and managing AsyncWeb3 connections with connection pooling. """
+    """A factory for creating and managing AsyncWeb3 connections with connection pooling."""
 
     _connections: Dict[int, AsyncWeb3] = {}
     _connection_lock = asyncio.Lock()
@@ -80,7 +80,7 @@ class Web3ConnectionFactory:
 
     @classmethod
     async def _create_new_connection(cls, chain_id: int) -> AsyncWeb3:
-        """Create a new Web3 connection with fallback logic. """
+        """Create a new Web3 connection with fallback logic."""
         from on1builder.config.loaders import get_settings
 
         settings = get_settings()
@@ -126,7 +126,7 @@ class Web3ConnectionFactory:
     async def _create_websocket_connection(
         cls, chain_id: int, ws_url: str
     ) -> Optional[AsyncWeb3]:
-        """Create a WebSocket connection. """
+        """Create a WebSocket connection."""
         if not WEBSOCKET_AVAILABLE:
             return None
 
@@ -141,7 +141,7 @@ class Web3ConnectionFactory:
 
     @classmethod
     async def _create_http_connection(cls, chain_id: int, http_url: str) -> AsyncWeb3:
-        """Create an HTTP connection. """
+        """Create an HTTP connection."""
         provider = QuietAsyncHTTPProvider(http_url)
         web3 = AsyncWeb3(provider)
         cls._configure_web3_instance(web3, chain_id)
@@ -149,7 +149,7 @@ class Web3ConnectionFactory:
 
     @classmethod
     def _configure_web3_instance(cls, web3: AsyncWeb3, chain_id: int) -> None:
-        """Configure a Web3 instance with necessary middleware. """
+        """Configure a Web3 instance with necessary middleware."""
         from on1builder.config.loaders import get_settings
 
         settings = get_settings()
@@ -161,7 +161,7 @@ class Web3ConnectionFactory:
 
     @classmethod
     async def _test_connection(cls, web3: AsyncWeb3) -> bool:
-        """Test if a Web3 connection is working. """
+        """Test if a Web3 connection is working."""
         try:
             await asyncio.wait_for(web3.eth.get_block("latest"), timeout=5.0)
             return True
@@ -170,7 +170,7 @@ class Web3ConnectionFactory:
 
     @classmethod
     async def close_all_connections(cls) -> None:
-        """Close all cached connections. """
+        """Close all cached connections."""
         async with cls._connection_lock:
             for chain_id, web3 in cls._connections.items():
                 try:
@@ -202,7 +202,10 @@ class QuietHTTPSessionManager(HTTPSessionManager):
     """Custom session manager to avoid deprecated connector flags in web3."""
 
     async def async_cache_and_return_session(
-        self, endpoint_uri, session: Optional[ClientSession] = None, request_timeout=None
+        self,
+        endpoint_uri,
+        session: Optional[ClientSession] = None,
+        request_timeout=None,
     ) -> ClientSession:
         cache_key = generate_cache_key(f"{id(asyncio.get_event_loop())}:{endpoint_uri}")
         evicted_items = None

@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class PerformanceMetrics:
-    """Container for performance metrics. """
+    """Container for performance metrics."""
 
     timestamp: datetime = field(default_factory=datetime.now)
     cpu_percent: float = 0.0
@@ -35,20 +35,20 @@ class PerformanceMetrics:
 
     @property
     def success_rate(self) -> float:
-        """Calculate transaction success rate. """
+        """Calculate transaction success rate."""
         if self.total_transactions == 0:
             return 0.0
         return (self.successful_transactions / self.total_transactions) * 100
 
     @property
     def net_profit_eth(self) -> Decimal:
-        """Calculate net profit after gas costs. """
+        """Calculate net profit after gas costs."""
         return self.total_profit_eth - self.gas_used_eth
 
 
 @dataclass
 class ChainMetrics:
-    """Performance metrics for a specific chain. """
+    """Performance metrics for a specific chain."""
 
     chain_id: int
     is_healthy: bool = True
@@ -62,7 +62,7 @@ class ChainMetrics:
 
 
 class PerformanceMonitor:
-    """Monitors system and application performance metrics. """
+    """Monitors system and application performance metrics."""
 
     def __init__(self, collection_interval: int = 60):
         self.collection_interval = collection_interval
@@ -75,7 +75,7 @@ class PerformanceMonitor:
         self._last_cleanup = datetime.now()
 
     async def start(self):
-        """Start the performance monitoring loop. """
+        """Start the performance monitoring loop."""
         if self._is_running:
             logger.warning("Performance monitor is already running")
             return
@@ -87,7 +87,7 @@ class PerformanceMonitor:
         )
 
     async def stop(self):
-        """Stop the performance monitoring. """
+        """Stop the performance monitoring."""
         self._is_running = False
         if self._monitor_task:
             self._monitor_task.cancel()
@@ -98,7 +98,7 @@ class PerformanceMonitor:
         logger.info("Performance monitor stopped")
 
     async def _monitoring_loop(self):
-        """Main monitoring loop. """
+        """Main monitoring loop."""
         while self._is_running:
             try:
                 await self._collect_metrics()
@@ -111,7 +111,7 @@ class PerformanceMonitor:
                 await asyncio.sleep(self.collection_interval)
 
     async def _collect_metrics(self):
-        """Collect current performance metrics. """
+        """Collect current performance metrics."""
         try:
             # System metrics
             cpu_percent = psutil.cpu_percent(interval=1)
@@ -139,7 +139,7 @@ class PerformanceMonitor:
             logger.error(f"Error collecting performance metrics: {e}")
 
     def _calculate_average_execution_time(self) -> float:
-        """Calculate average execution time from recent transactions. """
+        """Calculate average execution time from recent transactions."""
         if not self._transaction_times:
             return 0.0
 
@@ -148,7 +148,7 @@ class PerformanceMonitor:
         return sum(self._transaction_times) / len(self._transaction_times)
 
     async def _cleanup_old_data(self):
-        """Clean up old performance data. """
+        """Clean up old performance data."""
         now = datetime.now()
         if now - self._last_cleanup < timedelta(hours=1):
             return
@@ -176,7 +176,7 @@ class PerformanceMonitor:
         profit_eth: Optional[Decimal] = None,
         gas_used_eth: Optional[Decimal] = None,
     ):
-        """Record a transaction for performance tracking. """
+        """Record a transaction for performance tracking."""
         try:
             # Update latest metrics
             if self._metrics_history:
@@ -210,7 +210,7 @@ class PerformanceMonitor:
         gas_price_gwei: float,
         pending_tx_count: int,
     ):
-        """Update metrics for a specific chain. """
+        """Update metrics for a specific chain."""
         try:
             if chain_id not in self._chain_metrics:
                 self._chain_metrics[chain_id] = ChainMetrics(chain_id=chain_id)
@@ -234,18 +234,18 @@ class PerformanceMonitor:
             logger.error(f"Error updating chain metrics for {chain_id}: {e}")
 
     def mark_chain_unhealthy(self, chain_id: int, reason: str):
-        """Mark a chain as unhealthy. """
+        """Mark a chain as unhealthy."""
         if chain_id in self._chain_metrics:
             self._chain_metrics[chain_id].is_healthy = False
             self._chain_metrics[chain_id].connection_status = reason
             logger.warning(f"Chain {chain_id} marked as unhealthy: {reason}")
 
     def get_current_metrics(self) -> Optional[PerformanceMetrics]:
-        """Get the most recent performance metrics. """
+        """Get the most recent performance metrics."""
         return self._metrics_history[-1] if self._metrics_history else None
 
     def get_metrics_summary(self, hours: int = 1) -> Dict[str, Any]:
-        """Get a summary of performance metrics for the specified time period. """
+        """Get a summary of performance metrics for the specified time period."""
         if not self._metrics_history:
             return {"error": "No metrics available"}
 
@@ -297,7 +297,7 @@ class PerformanceMonitor:
         }
 
     def get_health_status(self) -> Dict[str, Any]:
-        """Get overall system health status. """
+        """Get overall system health status."""
         current_metrics = self.get_current_metrics()
 
         if not current_metrics:
@@ -339,7 +339,7 @@ class PerformanceMonitor:
             return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
     async def generate_report(self, hours: int = 24) -> str:
-        """Generate a comprehensive performance report. """
+        """Generate a comprehensive performance report."""
         summary = self.get_metrics_summary(hours)
         health = self.get_health_status()
 

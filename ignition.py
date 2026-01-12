@@ -41,7 +41,7 @@ class Ignition:
         self.env_file_path: Optional[Path] = self._find_env_file()
 
     def _find_env_file(self) -> Optional[Path]:
-        """Searches for a .env file in the current and parent directories. """
+        """Searches for a .env file in the current and parent directories."""
         current_dir = Path.cwd()
         for _ in range(3):
             env_path = current_dir / ".env"
@@ -51,7 +51,7 @@ class Ignition:
         return None
 
     def display_header(self):
-        """Displays the application header. """
+        """Displays the application header."""
         console.clear()
         header = Panel(
             "[bold yellow]ON1Builder Ignition[/]\n[dim]Interactive TUI Launcher[/]",
@@ -63,7 +63,7 @@ class Ignition:
         console.print()
 
     def display_status(self):
-        """Displays the current configuration status. """
+        """Displays the current configuration status."""
         status_table = Table(show_header=False, box=None, padding=(0, 2))
         status_table.add_column(style="cyan")
         status_table.add_column(style="green")
@@ -81,7 +81,7 @@ class Ignition:
         console.print()
 
     def run(self):
-        """The main loop for the interactive menu. """
+        """The main loop for the interactive menu."""
         while True:
             self.display_header()
             self.display_status()
@@ -119,7 +119,7 @@ class Ignition:
                 break
 
     def configure_env_path(self):
-        """Prompts the user to set the path to the .env file. """
+        """Prompts the user to set the path to the .env file."""
         path_str = questionary.path(
             "Enter the full path to your .env file:",
             only_files=True,
@@ -131,7 +131,7 @@ class Ignition:
         time.sleep(1.5)
 
     def launch_bot(self):
-        """Constructs and runs the 'run start' command. """
+        """Constructs and runs the 'run start' command."""
         self.display_header()
         console.print("[bold green]  Launching ON1Builder...[/]")
         console.print("[dim]Press Ctrl+C to stop the bot at any time.[/]\n")
@@ -160,7 +160,7 @@ class Ignition:
         input()
 
     def check_status(self):
-        """Runs the 'status check' command. """
+        """Runs the 'status check' command."""
         self.display_header()
         command = [sys.executable, "-m", "on1builder", "status", "check"]
         subprocess.run(
@@ -172,7 +172,7 @@ class Ignition:
         input()
 
     def view_logs(self):
-        """Displays the tail end of the main log file. """
+        """Displays the tail end of the main log file."""
         self.display_header()
         log_file = Path("logs/on1builder.log")
         if not log_file.exists():

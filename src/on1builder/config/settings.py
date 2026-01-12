@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 
 class APISettings(BaseModel):
-    """Configuration for external APIs. """
+    """Configuration for external APIs."""
 
     etherscan_api_key: Optional[str] = None
     coingecko_api_key: Optional[str] = None
@@ -26,7 +26,7 @@ class APISettings(BaseModel):
 
 
 class ContractAddressSettings(BaseModel):
-    """Manages chain-specific contract addresses, loaded from JSON strings in .env. """
+    """Manages chain-specific contract addresses, loaded from JSON strings in .env."""
 
     uniswap_v2_router: Dict[str, str] = Field(default_factory=dict)
     sushiswap_router: Dict[str, str] = Field(default_factory=dict)
@@ -35,7 +35,7 @@ class ContractAddressSettings(BaseModel):
 
     @model_validator(mode="before")
     def parse_json_strings(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """Parses fields that are expected to be JSON strings from the environment. """
+        """Parses fields that are expected to be JSON strings from the environment."""
         parsed_values = values.copy()
         for field, value in values.items():
             if isinstance(value, str) and value.strip().startswith("{"):
@@ -49,7 +49,7 @@ class ContractAddressSettings(BaseModel):
 
 
 class NotificationSettings(BaseModel):
-    """Configuration for the notification service. """
+    """Configuration for the notification service."""
 
     channels: List[str] = Field(default_factory=list)
     min_level: str = Field(
@@ -79,13 +79,13 @@ class NotificationSettings(BaseModel):
 
 
 class DatabaseSettings(BaseModel):
-    """Configuration for the database connection. """
+    """Configuration for the database connection."""
 
     url: str = "sqlite+aiosqlite:///on1builder_data.db"
 
 
 class GlobalSettings(BaseModel):
-    """The master configuration model for the entire application. """
+    """The master configuration model for the entire application."""
 
     model_config = ConfigDict(extra="allow", case_sensitive=False)
 
@@ -109,7 +109,7 @@ class GlobalSettings(BaseModel):
     @field_validator("chains", "poa_chains", mode="before")
     @classmethod
     def split_chain_ids(cls, v):
-        """Split comma-separated chain IDs and validate them. """
+        """Split comma-separated chain IDs and validate them."""
         if isinstance(v, str):
             chain_ids = [
                 int(item.strip()) for item in v.split(",") if item.strip().isdigit()
@@ -122,7 +122,7 @@ class GlobalSettings(BaseModel):
     @field_validator("wallet_address", mode="after")
     @classmethod
     def validate_wallet_address(cls, v):
-        """Validate wallet address format using the validation framework. """
+        """Validate wallet address format using the validation framework."""
         from .validation import ConfigValidator
 
         return ConfigValidator.validate_wallet_address(v)
@@ -130,7 +130,7 @@ class GlobalSettings(BaseModel):
     @field_validator("wallet_key", mode="after")
     @classmethod
     def validate_wallet_key(cls, v):
-        """Validate private key format using the validation framework. """
+        """Validate private key format using the validation framework."""
         from .validation import ConfigValidator
 
         return ConfigValidator.validate_private_key(v)
@@ -138,7 +138,7 @@ class GlobalSettings(BaseModel):
     @field_validator("wallet_keys", mode="after")
     @classmethod
     def validate_wallet_keys(cls, v):
-        """Validate per-chain wallet keys. """
+        """Validate per-chain wallet keys."""
         if not v:
             return v
         from .validation import ConfigValidator
@@ -151,7 +151,7 @@ class GlobalSettings(BaseModel):
     @field_validator("wallet_addresses", mode="after")
     @classmethod
     def validate_wallet_addresses(cls, v):
-        """Validate per-chain wallet addresses. """
+        """Validate per-chain wallet addresses."""
         if not v:
             return v
         from .validation import ConfigValidator
@@ -164,7 +164,7 @@ class GlobalSettings(BaseModel):
     @field_validator("chains", "poa_chains", mode="after")
     @classmethod
     def validate_chain_list(cls, v):
-        """Validate chain IDs using the validation framework. """
+        """Validate chain IDs using the validation framework."""
         if v:  # Only validate if not empty
             from .validation import ConfigValidator
 
@@ -173,7 +173,7 @@ class GlobalSettings(BaseModel):
 
     @model_validator(mode="after")
     def validate_balance_thresholds(self):
-        """Validate balance threshold ordering using the validation framework. """
+        """Validate balance threshold ordering using the validation framework."""
         from .validation import ConfigValidator
 
         ConfigValidator.validate_balance_thresholds(
@@ -185,7 +185,7 @@ class GlobalSettings(BaseModel):
 
     @model_validator(mode="after")
     def validate_gas_settings(self):
-        """Validate gas-related settings using the validation framework. """
+        """Validate gas-related settings using the validation framework."""
         from .validation import ConfigValidator
 
         ConfigValidator.validate_gas_settings(
@@ -195,7 +195,7 @@ class GlobalSettings(BaseModel):
 
     @model_validator(mode="after")
     def validate_complete_settings(self):
-        """Perform complete validation using the validation framework. """
+        """Perform complete validation using the validation framework."""
         try:
             from .validation import validate_complete_config
 

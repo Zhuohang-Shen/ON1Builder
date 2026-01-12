@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 
 class TxPoolScanner:
-    """ transaction pool scanner with sophisticated MEV opportunity detection. """
+    """transaction pool scanner with sophisticated MEV opportunity detection."""
 
     # MEV pattern detection
     MEV_PATTERNS = {
@@ -71,7 +71,7 @@ class TxPoolScanner:
         )
 
     def _build_dex_router_mapping(self) -> Dict[str, str]:
-        """Build chain-specific DEX router address mapping. """
+        """Build chain-specific DEX router address mapping."""
         dex_routers = {}
 
         # Get chain-specific router addresses from settings
@@ -103,7 +103,7 @@ class TxPoolScanner:
         return dex_routers
 
     def _get_all_monitored_addresses(self) -> Set[str]:
-        """Gathers all unique token addresses to monitor across all configured chains. """
+        """Gathers all unique token addresses to monitor across all configured chains."""
         addresses = set()
         for chain_id in settings.chains:
             token_map = self._abi_registry.get_monitored_tokens(chain_id)
@@ -111,7 +111,7 @@ class TxPoolScanner:
         return addresses
 
     def _manage_cache_size(self) -> None:
-        """Efficiently manage cache sizes to prevent memory bloat. """
+        """Efficiently manage cache sizes to prevent memory bloat."""
         current_time = datetime.now()
 
         # Clean tx analysis cache
@@ -145,7 +145,8 @@ class TxPoolScanner:
 
         self._is_running = True
         logger.info(
-            "Scanning transaction pool for MEV opportunities on chain %s...", self._chain_id
+            "Scanning transaction pool for MEV opportunities on chain %s...",
+            self._chain_id,
         )
         self._scan_task = asyncio.create_task(self._subscribe_to_pending_transactions())
 
@@ -248,7 +249,7 @@ class TxPoolScanner:
                         pass
 
     async def _process_tx_hash(self, tx_hash: str):
-        """ transaction processing with comprehensive MEV analysis. """
+        """transaction processing with comprehensive MEV analysis."""
         try:
             # Check cache first
             if tx_hash in self._tx_analysis_cache:
@@ -279,8 +280,10 @@ class TxPoolScanner:
 
                 # Pre-execution simulation stage
                 if opportunities and not settings.allow_unsimulated_trades:
-                    opportunities = await self._strategy_executor.simulate_opportunities_batch(
-                        opportunities
+                    opportunities = (
+                        await self._strategy_executor.simulate_opportunities_batch(
+                            opportunities
+                        )
                     )
 
                 for opportunity in opportunities:
@@ -291,7 +294,7 @@ class TxPoolScanner:
             logger.debug(f"Could not process transaction {tx_hash}: {e}")
 
     def _analyze_transaction_comprehensive(self, tx: TxData) -> Dict[str, Any]:
-        """Performs comprehensive analysis of a transaction for MEV opportunities. """
+        """Performs comprehensive analysis of a transaction for MEV opportunities."""
         analysis = {
             "tx_hash": tx["hash"].hex(),
             "from": tx["from"],
@@ -329,7 +332,7 @@ class TxPoolScanner:
         return analysis
 
     def _is_relevant_for_mev(self, analysis: Dict[str, Any]) -> bool:
-        """ relevance check for MEV opportunities. """
+        """relevance check for MEV opportunities."""
         # Check if transaction targets monitored addresses
         to_address = analysis.get("to", "").lower() if analysis.get("to") else ""
         if to_address in self._monitored_addresses:
@@ -357,7 +360,7 @@ class TxPoolScanner:
     async def _analyze_for_opportunities(
         self, analysis: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """Analyzes transaction for specific MEV opportunities. """
+        """Analyzes transaction for specific MEV opportunities."""
         opportunities = []
 
         try:
@@ -391,7 +394,9 @@ class TxPoolScanner:
 
             # Rate-limit dispatch: keep top 3 by estimated_profit_eth
             opportunities = sorted(
-                opportunities, key=lambda o: o.get("estimated_profit_eth", 0), reverse=True
+                opportunities,
+                key=lambda o: o.get("estimated_profit_eth", 0),
+                reverse=True,
             )[:3]
 
         except Exception as e:
@@ -404,7 +409,7 @@ class TxPoolScanner:
     async def _analyze_front_running(
         self, analysis: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """Analyzes potential front-running opportunities. """
+        """Analyzes potential front-running opportunities."""
         if analysis["value_eth"] < 2.0:  # Not worth front-running small trades
             return None
 
@@ -431,7 +436,7 @@ class TxPoolScanner:
     async def _analyze_back_running(
         self, analysis: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """Analyzes potential back-running opportunities. """
+        """Analyzes potential back-running opportunities."""
         if not analysis["target_dex"]:
             return None
 
@@ -455,7 +460,7 @@ class TxPoolScanner:
     async def _analyze_arbitrage_opportunity(
         self, analysis: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """Analyzes arbitrage opportunities created by the transaction. """
+        """Analyzes arbitrage opportunities created by the transaction."""
         if not analysis["target_dex"] or analysis["value_eth"] < 1.0:
             return None
 
@@ -532,7 +537,7 @@ class TxPoolScanner:
     async def _analyze_liquidation_opportunity(
         self, analysis: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """Analyzes liquidation opportunities. """
+        """Analyzes liquidation opportunities."""
         if analysis["mev_type"] != "liquidation":
             return None
 
@@ -548,7 +553,7 @@ class TxPoolScanner:
         }
 
     def _calculate_priority_score(self, analysis: Dict[str, Any]) -> float:
-        """Calculates priority score for the transaction. """
+        """Calculates priority score for the transaction."""
         score = 0.0
 
         # Value contribution
@@ -576,7 +581,7 @@ class TxPoolScanner:
         return min(score, 1.0)
 
     def _estimate_profit_potential(self, analysis: Dict[str, Any]) -> float:
-        """Estimates profit potential for the transaction. """
+        """Estimates profit potential for the transaction."""
         base_profit = analysis["value_eth"] * 0.01  # 1% base estimate
 
         # Adjust based on MEV type
@@ -593,7 +598,7 @@ class TxPoolScanner:
         return base_profit
 
     def _calculate_risk_score(self, analysis: Dict[str, Any]) -> float:
-        """Calculates risk score for the opportunity. """
+        """Calculates risk score for the opportunity."""
         risk = 0.5  # Base risk
 
         # Higher value = higher risk
@@ -611,16 +616,16 @@ class TxPoolScanner:
         return min(risk, 1.0)
 
     def _get_high_gas_threshold(self) -> int:
-        """Gets the threshold for considering gas price as high. """
+        """Gets the threshold for considering gas price as high."""
         # This would ideally be dynamic based on network conditions
         return 50 * 10**9  # 50 gwei
 
     def get_pending_tx_count(self) -> int:
-        """Returns the count of processed pending transactions. """
+        """Returns the count of processed pending transactions."""
         return self._pending_tx_count
 
     def get_cache_stats(self) -> Dict[str, int]:
-        """Returns cache statistics for monitoring. """
+        """Returns cache statistics for monitoring."""
         return {
             "tx_analysis_cache_size": len(self._tx_analysis_cache),
             "opportunity_cache_size": len(self._opportunity_cache),
@@ -632,7 +637,7 @@ class TxPoolScanner:
         }
 
     def get_performance_metrics(self) -> Dict[str, Any]:
-        """Get comprehensive performance metrics. """
+        """Get comprehensive performance metrics."""
         total_pending = max(self._pending_tx_count, 1)
 
         return {

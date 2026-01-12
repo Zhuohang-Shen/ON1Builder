@@ -36,7 +36,7 @@ def main(
         help="Run the interactive configuration wizard to create .env.",
     ),
 ):
-    """Entry point for global CLI options. """
+    """Entry point for global CLI options."""
     if setup:
         from on1builder.cli.setup_wizard import run_setup_wizard
 
@@ -50,14 +50,14 @@ def main(
 
 @app.command(name="version")
 def show_version():
-    """Displays the application version. """
+    """Displays the application version."""
     from on1builder import __version__
 
     typer.echo(f"ON1Builder Version: {__version__}")
 
 
 def cli():
-    """Main function to run the Typer application. """
+    """Main function to run the Typer application."""
     try:
         # The logger is initialized when the logging_config module is imported.
         # This ensures logging is set up before any command runs.

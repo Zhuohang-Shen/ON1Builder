@@ -1,4 +1,4 @@
-"""Behavior-heavy tests that assert end-to-end intentions rather than syntax. """
+"""Behavior-heavy tests that assert end-to-end intentions rather than syntax."""
 
 from decimal import Decimal
 from types import SimpleNamespace
@@ -81,7 +81,7 @@ class DummyContracts:
 
 @pytest.mark.asyncio
 async def test_profit_calculator_tracks_net_profit_and_strategy_intent(monkeypatch):
-    """Ensure profit analysis reflects inflow/outflow, gas, and strategy signals. """
+    """Ensure profit analysis reflects inflow/outflow, gas, and strategy signals."""
     calculator = ProfitCalculator(AsyncMock(), SimpleNamespace(wallet_address="0xabc"))
     # Avoid hitting live pricing
     monkeypatch.setattr(
@@ -124,7 +124,7 @@ async def test_profit_calculator_tracks_net_profit_and_strategy_intent(monkeypat
 async def test_strategy_executor_respects_balance_tiers_and_ON1Builders_opportunities(
     monkeypatch, tmp_path
 ):
-    """Validate strategy selection honors balance tiers and ON1Builders opportunities with limits. """
+    """Validate strategy selection honors balance tiers and ON1Builders opportunities with limits."""
     balance_summary = {
         "balance": 2.0,
         "balance_tier": "medium",
@@ -155,7 +155,7 @@ async def test_strategy_executor_respects_balance_tiers_and_ON1Builders_opportun
 
 
 def test_strategy_executor_updates_weights_with_context():
-    """Weight updates should reward profitable executions with contextual signals. """
+    """Weight updates should reward profitable executions with contextual signals."""
     balance_manager = DummyBalanceManager(
         {
             "balance": 5.0,
@@ -184,7 +184,7 @@ def test_strategy_executor_updates_weights_with_context():
 
 @pytest.mark.asyncio
 async def test_txpool_scanner_identifies_mev_relevance_and_opportunities(monkeypatch):
-    """End-to-end transaction analysis should flag MEV relevance and produce opportunities. """
+    """End-to-end transaction analysis should flag MEV relevance and produce opportunities."""
     stub_settings = SimpleNamespace(
         contracts=DummyContracts(),
         chains=[1],

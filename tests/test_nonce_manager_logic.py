@@ -1,4 +1,4 @@
-"""Logical tests for NonceManager ensuring reliable nonce handling. """
+"""Logical tests for NonceManager ensuring reliable nonce handling."""
 
 import pytest
 

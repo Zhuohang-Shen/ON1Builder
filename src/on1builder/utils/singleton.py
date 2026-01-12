@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 class SingletonMeta(type):
-    """A thread-safe singleton metaclass. """
+    """A thread-safe singleton metaclass."""
 
     _instances: Dict[type, Any] = {}
     _lock: threading.Lock = threading.Lock()
@@ -36,7 +36,7 @@ class SingletonMeta(type):
         return instance
 
     def reset_instance(cls) -> None:
-        """For testing purposes, allows resetting the singleton instance. """
+        """For testing purposes, allows resetting the singleton instance."""
         with cls._lock:
             if cls in cls._instances:
                 del cls._instances[cls]
@@ -44,7 +44,7 @@ class SingletonMeta(type):
 
 
 class SingletonRegistry:
-    """A registry for managing named singleton instances, often created via factories. """
+    """A registry for managing named singleton instances, often created via factories."""
 
     _instances: Dict[str, Any] = {}
     _factories: Dict[str, Callable[..., Any]] = {}
@@ -81,7 +81,7 @@ class SingletonRegistry:
         return self._instances[key]
 
     def has(self, key: str) -> bool:
-        """Checks if a singleton (instance or factory) is registered for the key. """
+        """Checks if a singleton (instance or factory) is registered for the key."""
         return key in self._instances or key in self._factories
 
     def reset(self, key: Optional[str] = None) -> None:
@@ -130,5 +130,5 @@ _registry = SingletonRegistry()
 
 
 def get_singleton_registry() -> SingletonRegistry:
-    """Provides access to the global singleton registry. """
+    """Provides access to the global singleton registry."""
     return _registry

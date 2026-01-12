@@ -36,7 +36,7 @@ class ABIRegistry(metaclass=SingletonMeta):
         self._load_all_resources()
 
     def _load_all_resources(self) -> None:
-        """Loads all ABIs and token data from the resources directory. """
+        """Loads all ABIs and token data from the resources directory."""
         if self._loaded:
             return
 
@@ -85,7 +85,7 @@ class ABIRegistry(metaclass=SingletonMeta):
         self._loaded = True
 
     def _build_token_maps(self):
-        """Builds hashmaps for quick token lookups by symbol and address. """
+        """Builds hashmaps for quick token lookups by symbol and address."""
         for token_data in self._tokens:
             symbol = token_data.get("symbol")
             if not symbol:
@@ -181,7 +181,7 @@ class ABIRegistry(metaclass=SingletonMeta):
     def get_token_symbol_by_address(
         self, address: str, chain_id: Optional[int] = None
     ) -> Optional[str]:
-        """Public-friendly alias that optionally searches across chains when chain_id is unknown. """
+        """Public-friendly alias that optionally searches across chains when chain_id is unknown."""
         address = address.lower()
         if chain_id is not None:
             return self._token_map_by_address.get(chain_id, {}).get(address)
@@ -195,7 +195,7 @@ class ABIRegistry(metaclass=SingletonMeta):
     def get_token_info_by_address(
         self, address: str, chain_id: Optional[int] = None
     ) -> Optional[Dict[str, Any]]:
-        """Return stored token metadata (symbol, name, decimals) for an address. """
+        """Return stored token metadata (symbol, name, decimals) for an address."""
         address = address.lower()
         if chain_id is not None:
             return self._token_info_by_address.get(chain_id, {}).get(address)

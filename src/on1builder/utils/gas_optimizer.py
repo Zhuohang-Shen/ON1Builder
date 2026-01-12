@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 
 class GasOptimizer:
-    """Advanced gas optimization manager for MEV strategies. """
+    """Advanced gas optimization manager for MEV strategies."""
 
     # Class constants for better performance
     DEFAULT_PRIORITY_FEE_GWEI = 2
@@ -41,7 +41,7 @@ class GasOptimizer:
         self._update_lock = asyncio.Lock()
 
     async def initialize(self):
-        """Initialize gas optimizer with current network state. """
+        """Initialize gas optimizer with current network state."""
         async with self._update_lock:
             try:
                 # Check EIP-1559 support
@@ -86,7 +86,7 @@ class GasOptimizer:
     async def _get_eip1559_params(
         self, priority_level: str, target_blocks: int
     ) -> Dict[str, int]:
-        """Calculate optimal EIP-1559 gas parameters. """
+        """Calculate optimal EIP-1559 gas parameters."""
         try:
             latest_block = await self._web3.eth.get_block("latest")
             base_fee = latest_block.get("baseFeePerGas", 0)
@@ -131,7 +131,7 @@ class GasOptimizer:
     async def _get_legacy_gas_params(
         self, priority_level: str, target_blocks: int
     ) -> Dict[str, int]:
-        """Calculate optimal legacy gas price. """
+        """Calculate optimal legacy gas price."""
         try:
             current_gas_price = await self._web3.eth.gas_price
 
@@ -166,7 +166,7 @@ class GasOptimizer:
             return {"gasPrice": await self._web3.eth.gas_price, "type": 0}
 
     def _predict_base_fee(self, blocks_ahead: int) -> int:
-        """Predict base fee for future blocks based on historical data. """
+        """Predict base fee for future blocks based on historical data."""
         if not self._base_fee_history or blocks_ahead <= 0:
             return self._base_fee_history[-1][1] if self._base_fee_history else 0
 
@@ -185,7 +185,7 @@ class GasOptimizer:
         return int(min(max(predicted_fee, 0), max_predicted_fee))
 
     async def _update_gas_metrics(self):
-        """Update gas price metrics from network data with efficient data management. """
+        """Update gas price metrics from network data with efficient data management."""
         if not self._update_lock.locked():
             async with self._update_lock:
                 try:
@@ -229,7 +229,7 @@ class GasOptimizer:
     async def _calculate_priority_fee_estimate(
         self, latest_block: Dict, base_fee: int, current_gas_price: int
     ) -> int:
-        """Calculate priority fee estimate from recent transactions. """
+        """Calculate priority fee estimate from recent transactions."""
         try:
             # Get recent transactions from the block
             block_transactions = latest_block.get("transactions", [])
@@ -259,7 +259,7 @@ class GasOptimizer:
     async def estimate_transaction_cost(
         self, gas_limit: int, priority_level: str = "normal"
     ) -> Decimal:
-        """Estimate transaction cost in ETH for given gas limit and priority. """
+        """Estimate transaction cost in ETH for given gas limit and priority."""
         gas_params = await self.get_optimal_gas_params(priority_level)
 
         if gas_params.get("type") == 2:  # EIP-1559

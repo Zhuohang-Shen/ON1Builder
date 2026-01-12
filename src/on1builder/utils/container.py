@@ -24,7 +24,9 @@ class Container:
         """Registers a pre-instantiated object in the container."""
         if not key:
             raise ValueError("Key cannot be empty")
-        logger.debug(f"Registering instance for key: '{key}' (type: {type(instance).__name__})")
+        logger.debug(
+            f"Registering instance for key: '{key}' (type: {type(instance).__name__})"
+        )
         self._instances[key] = instance
 
     def register_provider(self, key: str, provider: Callable[[], T]) -> None:
@@ -99,7 +101,9 @@ class Container:
                     else:
                         shutdown_method()
                 except Exception as e:
-                    logger.error(f"Error shutting down component '{key}': {e}", exc_info=True)
+                    logger.error(
+                        f"Error shutting down component '{key}': {e}", exc_info=True
+                    )
 
         self._instances.clear()
         self._providers.clear()

@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 
 class ProfitCalculator:
-    """Advanced profit calculation with transaction log parsing and flash loan analysis. """
+    """Advanced profit calculation with transaction log parsing and flash loan analysis."""
 
     def __init__(self, web3: AsyncWeb3, settings: Optional[Any] = None):
         self._web3 = web3
@@ -85,7 +85,7 @@ class ProfitCalculator:
             return {"error": str(e)}
 
     def _calculate_gas_cost(self, receipt: TxReceipt, transaction: Any) -> Decimal:
-        """Calculate gas cost in ETH. """
+        """Calculate gas cost in ETH."""
         gas_used = receipt.gasUsed
         gas_price = transaction.get("gasPrice", 0)
 
@@ -97,7 +97,7 @@ class ProfitCalculator:
         return Decimal(gas_cost_wei) / Decimal(10**18)
 
     async def _parse_token_movements(self, logs: List[Dict]) -> List[Dict[str, Any]]:
-        """Parse transaction logs to extract token movements. """
+        """Parse transaction logs to extract token movements."""
         movements = []
 
         for log in logs:
@@ -136,7 +136,7 @@ class ProfitCalculator:
         return movements
 
     async def _parse_transfer_log(self, log: Dict) -> Optional[Dict[str, Any]]:
-        """Parse ERC20 Transfer event. """
+        """Parse ERC20 Transfer event."""
         try:
             if len(log.topics) < 3:
                 return None
@@ -173,7 +173,7 @@ class ProfitCalculator:
             return None
 
     async def _parse_swap_log(self, log: Dict) -> Optional[Dict[str, Any]]:
-        """Parse DEX swap event using proper ABI decoding. """
+        """Parse DEX swap event using proper ABI decoding."""
         try:
             # Known DEX swap event signatures
             swap_signatures = {
@@ -264,7 +264,7 @@ class ProfitCalculator:
             return None
 
     async def _parse_flash_loan_log(self, log: Dict) -> Optional[Dict[str, Any]]:
-        """Parse flash loan event. """
+        """Parse flash loan event."""
         try:
             return {
                 "type": "flash_loan",
@@ -284,7 +284,7 @@ class ProfitCalculator:
         strategy_type: str,
         expected_tokens: List[str] = None,
     ) -> Dict[str, Any]:
-        """Analyze profit based on strategy type and token movements. """
+        """Analyze profit based on strategy type and token movements."""
         try:
             if self._settings is None:
                 from on1builder.config.loaders import get_settings
@@ -383,7 +383,7 @@ class ProfitCalculator:
     async def _get_strategy_specific_analysis(
         self, strategy_type: str, movements: List[Dict], net_changes: Dict[str, Decimal]
     ) -> Dict[str, Any]:
-        """Provide strategy-specific profit analysis. """
+        """Provide strategy-specific profit analysis."""
         analysis = {"strategy_type": strategy_type}
 
         try:
@@ -424,7 +424,7 @@ class ProfitCalculator:
         return analysis
 
     async def _get_token_decimals(self, token_address: str) -> int:
-        """Get token decimals with caching. """
+        """Get token decimals with caching."""
         token_address = token_address.lower()
 
         if token_address in self._token_decimals_cache:
@@ -480,7 +480,7 @@ class ProfitCalculator:
     async def _convert_token_to_usd(
         self, amount: Decimal, token_symbol: Optional[str]
     ) -> Decimal:
-        """Convert token amount to USD value using real-time price feeds. """
+        """Convert token amount to USD value using real-time price feeds."""
         if not token_symbol or amount == 0:
             return Decimal("0")
 
@@ -505,7 +505,7 @@ class ProfitCalculator:
             return Decimal("0")
 
     async def _convert_eth_to_usd(self, eth_amount: Decimal) -> Decimal:
-        """Convert ETH amount to USD using real-time price. """
+        """Convert ETH amount to USD using real-time price."""
         try:
             # Get real-time ETH price
             eth_price = await self._get_token_price_usd("ETH")
@@ -520,7 +520,7 @@ class ProfitCalculator:
             return Decimal("0")
 
     async def calculate_flash_loan_profit(self, tx_hash: str) -> Dict[str, Any]:
-        """Specialized flash loan profit calculation. """
+        """Specialized flash loan profit calculation."""
         try:
             base_analysis = await self.calculate_transaction_profit(
                 tx_hash, "flash_loan"
@@ -550,7 +550,7 @@ class ProfitCalculator:
             return {"error": str(e)}
 
     async def get_profit_summary(self, tx_hashes: List[str]) -> Dict[str, Any]:
-        """Generate profit summary for multiple transactions. """
+        """Generate profit summary for multiple transactions."""
         try:
             total_profit = Decimal("0")
             total_gas_cost = Decimal("0")
@@ -624,7 +624,7 @@ class ProfitCalculator:
             return {"error": str(e)}
 
     async def _get_token_price_usd(self, token_symbol: str) -> float:
-        """Get real-time token price in USD from external APIs. """
+        """Get real-time token price in USD from external APIs."""
         try:
             # Reuse the centralized API manager to avoid duplicated price logic and mappings.
             price = await self._api_manager.get_price(token_symbol)

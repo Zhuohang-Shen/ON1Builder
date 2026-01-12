@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 
 def _coerce_notification_settings(raw: Any) -> NotificationSettings:
-    """Normalize arbitrary settings input into a ``NotificationSettings`` instance. """
+    """Normalize arbitrary settings input into a ``NotificationSettings`` instance."""
     if raw is None:
         return NotificationSettings()
     if isinstance(raw, NotificationSettings):
@@ -37,7 +37,7 @@ def _coerce_notification_settings(raw: Any) -> NotificationSettings:
 
 
 class NotificationService(metaclass=SingletonMeta):
-    """Manages sending notifications through various configured channels. """
+    """Manages sending notifications through various configured channels."""
 
     def __init__(self, settings_override: Optional[Any] = None):
         self._session: Optional[aiohttp.ClientSession] = None
@@ -67,22 +67,22 @@ class NotificationService(metaclass=SingletonMeta):
     # ------------------------------------------------------------------
     @property
     def config(self) -> Optional[NotificationSettings]:
-        """Expose resolved notification settings for legacy callers. """
+        """Expose resolved notification settings for legacy callers."""
         if not self._config_loaded:
             self._load_configuration()
         return self._config
 
     @property
     def settings(self) -> Optional[NotificationSettings]:
-        """Alias for :pyattr:`config` kept for compatibility. """
+        """Alias for :pyattr:`config` kept for compatibility."""
         return self.config
 
     def level_to_int(self, level: str) -> int:
-        """Public wrapper maintained for older integrations. """
+        """Public wrapper maintained for older integrations."""
         return self._level_to_int(level)
 
     def _load_configuration(self) -> bool:
-        """Loads notification configuration lazily; returns True when channels are available. """
+        """Loads notification configuration lazily; returns True when channels are available."""
         if self._config_loaded:
             return bool(self._configured_channels)
 
@@ -114,7 +114,7 @@ class NotificationService(metaclass=SingletonMeta):
         return bool(self._configured_channels)
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Lazily creates and returns an aiohttp ClientSession. """
+        """Lazily creates and returns an aiohttp ClientSession."""
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=10)
@@ -122,13 +122,13 @@ class NotificationService(metaclass=SingletonMeta):
         return self._session
 
     def _level_to_int(self, level: str) -> int:
-        """Converts a log level string to an integer for comparison. """
+        """Converts a log level string to an integer for comparison."""
         return {"DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 4}.get(
             level.upper(), 1
         )
 
     def _should_send(self, level: str) -> bool:
-        """Determines if a message of a given level should be sent. """
+        """Determines if a message of a given level should be sent."""
         if not self._configured_channels:
             return False
         return self._level_to_int(level) >= self._min_level_value
@@ -184,7 +184,7 @@ class NotificationService(metaclass=SingletonMeta):
             await asyncio.gather(*tasks, return_exceptions=True)
 
     def _format_details(self, details: Optional[Dict[str, Any]]) -> str:
-        """Formats the details dictionary into a string for message bodies. """
+        """Formats the details dictionary into a string for message bodies."""
         if not details:
             return ""
         return "\n".join(
@@ -331,14 +331,14 @@ class NotificationService(metaclass=SingletonMeta):
             logger.error(f"Error sending email notification: {e}", exc_info=True)
 
     def _send_smtp_email(self, msg):
-        """Blocking helper for sending email. """
+        """Blocking helper for sending email."""
         with smtplib.SMTP(self._config.smtp_server, self._config.smtp_port) as server:
             server.starttls()
             server.login(self._config.smtp_username, self._config.smtp_password)
             server.send_message(msg)
 
     async def close(self) -> None:
-        """Closes the aiohttp session. """
+        """Closes the aiohttp session."""
         if self._session and not self._session.closed:
             await self._session.close()
             logger.info("NotificationService session closed.")

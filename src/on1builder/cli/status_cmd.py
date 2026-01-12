@@ -22,7 +22,7 @@ console = Console(force_terminal=True, legacy_windows=True)
 
 
 def _api_value(name: str):
-    """Helper to safely read API keys regardless of dict/model shape. """
+    """Helper to safely read API keys regardless of dict/model shape."""
     api = getattr(settings, "api", None)
     if api is None:
         return None
@@ -32,7 +32,7 @@ def _api_value(name: str):
 
 
 def _notifications_value(name: str):
-    """Helper to safely read notification settings regardless of dict/model shape. """
+    """Helper to safely read notification settings regardless of dict/model shape."""
     notif = getattr(settings, "notifications", None)
     if notif is None:
         return None
@@ -42,7 +42,7 @@ def _notifications_value(name: str):
 
 
 def _database_value(name: str):
-    """Helper to safely read database settings regardless of dict/model shape. """
+    """Helper to safely read database settings regardless of dict/model shape."""
     db = getattr(settings, "database", None)
     if db is None:
         return None
@@ -52,7 +52,7 @@ def _database_value(name: str):
 
 
 async def check_comprehensive_status():
-    """ async helper to perform comprehensive status checks. """
+    """async helper to perform comprehensive status checks."""
 
     # Create main status table
     table = Table(title="ON1Builder ON1Builder System Status")
@@ -211,7 +211,7 @@ async def check_comprehensive_status():
 
 
 async def _show_balance_analysis():
-    """Show detailed balance analysis. """
+    """Show detailed balance analysis."""
     try:
         # Get balance info for all chains
         balance_info = []
@@ -246,7 +246,7 @@ async def _show_balance_analysis():
 
 
 async def _show_strategy_configuration():
-    """Show strategy and ML configuration. """
+    """Show strategy and ML configuration."""
     try:
         strategy_config = [
             f"Min Profit: {settings.min_profit_eth:.6f} ETH ({settings.min_profit_percentage}%)",

@@ -1,4 +1,4 @@
-"""Logic-focused tests for ChainWorker status without starting network tasks. """
+"""Logic-focused tests for ChainWorker status without starting network tasks."""
 
 import pytest
 

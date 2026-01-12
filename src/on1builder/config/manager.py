@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 
 class ConfigurationManager:
-    """Centralized configuration management with validation and monitoring. """
+    """Centralized configuration management with validation and monitoring."""
 
     def __init__(self):
         self._config = None
@@ -77,7 +77,7 @@ class ConfigurationManager:
             )
 
     def _find_config_file(self) -> Path:
-        """Find configuration file in standard locations. """
+        """Find configuration file in standard locations."""
         search_paths = [
             Path.cwd() / DEFAULT_ENV_FILE,
             Path.cwd().parent / DEFAULT_ENV_FILE,
@@ -94,7 +94,7 @@ class ConfigurationManager:
         return Path.cwd() / DEFAULT_ENV_FILE
 
     def _validate_configuration(self) -> None:
-        """Perform comprehensive configuration validation. """
+        """Perform comprehensive configuration validation."""
         self._validation_errors.clear()
 
         try:
@@ -119,7 +119,7 @@ class ConfigurationManager:
             raise ConfigurationError(error_msg, cause=e)
 
     def _check_critical_requirements(self, config: Dict[str, Any]) -> None:
-        """Check for critical configuration requirements. """
+        """Check for critical configuration requirements."""
         critical_fields = [
             ("wallet_key", "Wallet private key is required"),
             ("wallet_address", "Wallet address is required"),
@@ -144,7 +144,7 @@ class ConfigurationManager:
             )
 
     def _validate_chain_configurations(self, config: Dict[str, Any]) -> None:
-        """Validate chain-specific configurations. """
+        """Validate chain-specific configurations."""
         chains = config.get("chains", [])
         rpc_urls = config.get("rpc_urls", {})
         websocket_urls = config.get("websocket_urls", {})
@@ -170,7 +170,9 @@ class ConfigurationManager:
         # Warn if websocket URLs are missing for chains (txpool scanning will not run)
         missing_ws = []
         for chain_id in chains:
-            if not websocket_urls.get(chain_id) and not websocket_urls.get(str(chain_id)):
+            if not websocket_urls.get(chain_id) and not websocket_urls.get(
+                str(chain_id)
+            ):
                 missing_ws.append(chain_id)
         if missing_ws:
             logger.warning(
@@ -178,7 +180,7 @@ class ConfigurationManager:
             )
 
     def _validate_api_configurations(self, config: Dict[str, Any]) -> None:
-        """Validate API configurations. """
+        """Validate API configurations."""
         api_config = config.get("api", {})
 
         # Check for at least one price API
@@ -197,7 +199,7 @@ class ConfigurationManager:
             )
 
     def _log_configuration_summary(self) -> None:
-        """Log configuration summary without sensitive data. """
+        """Log configuration summary without sensitive data."""
         if not self._config:
             return
 
@@ -222,7 +224,7 @@ class ConfigurationManager:
         logger.debug(f"Configuration summary: {summary}")
 
     def get_config(self):
-        """Get the current configuration. """
+        """Get the current configuration."""
         if self._config is None:
             raise ConfigurationError(
                 "Configuration not initialized. Call initialize() first."
@@ -230,12 +232,12 @@ class ConfigurationManager:
         return self._config
 
     def reload_configuration(self) -> None:
-        """Reload configuration from file. """
+        """Reload configuration from file."""
         logger.info("Reloading configuration...")
         self.initialize(force_reload=True)
 
     def validate_runtime_requirements(self) -> Dict[str, bool]:
-        """Validate runtime requirements and return status. """
+        """Validate runtime requirements and return status."""
         if not self._config:
             return {"initialized": False}
 
@@ -251,7 +253,7 @@ class ConfigurationManager:
         return checks
 
     def _check_rpc_connections(self) -> bool:
-        """Check if RPC connections are properly configured. """
+        """Check if RPC connections are properly configured."""
         try:
             for chain_id in self._config.chains:
                 rpc_url = self._config.rpc_urls.get(str(chain_id))
@@ -263,7 +265,7 @@ class ConfigurationManager:
             return False
 
     def _check_api_access(self) -> bool:
-        """Check if API access is properly configured. """
+        """Check if API access is properly configured."""
         try:
             api_config = self._config.api
             # Check if at least one API key is configured
@@ -278,7 +280,7 @@ class ConfigurationManager:
             return False
 
     def _check_file_permissions(self) -> bool:
-        """Check file system permissions. """
+        """Check file system permissions."""
         try:
             if self._config_file_path:
                 return os.access(self._config_file_path, os.R_OK)
@@ -287,7 +289,7 @@ class ConfigurationManager:
             return False
 
     def get_health_status(self) -> Dict[str, Any]:
-        """Get comprehensive health status of configuration. """
+        """Get comprehensive health status of configuration."""
         return {
             "status": "healthy" if not self._validation_errors else "unhealthy",
             "last_loaded": self._last_loaded.isoformat() if self._last_loaded else None,
@@ -299,7 +301,7 @@ class ConfigurationManager:
         }
 
     def export_safe_config(self) -> Dict[str, Any]:
-        """Export configuration with sensitive data redacted. """
+        """Export configuration with sensitive data redacted."""
         if not self._config:
             return {}
 
@@ -314,7 +316,7 @@ _config_manager: Optional[ConfigurationManager] = None
 
 
 def get_config_manager() -> ConfigurationManager:
-    """Get the global configuration manager instance. """
+    """Get the global configuration manager instance."""
     global _config_manager
     if _config_manager is None:
         _config_manager = ConfigurationManager()
@@ -324,12 +326,12 @@ def get_config_manager() -> ConfigurationManager:
 def initialize_global_config(
     config_path: Optional[str] = None, force_reload: bool = False
 ) -> None:
-    """Initialize the global configuration. """
+    """Initialize the global configuration."""
     manager = get_config_manager()
     manager.initialize(config_path, force_reload)
 
 
 def get_validated_config():
-    """Get the validated configuration instance. """
+    """Get the validated configuration instance."""
     manager = get_config_manager()
     return manager.get_config()

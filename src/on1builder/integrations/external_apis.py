@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class RateLimitTracker:
-    """Tracks rate limit usage for API providers. """
+    """Tracks rate limit usage for API providers."""
 
     requests_made: int = 0
     window_start: float = 0
@@ -36,7 +36,7 @@ class RateLimitTracker:
     backoff_until: float = 0
 
     def can_make_request(self) -> bool:
-        """Check if we can make a request without hitting rate limits. """
+        """Check if we can make a request without hitting rate limits."""
         now = time.time()
 
         # If in backoff period, deny request
@@ -51,7 +51,7 @@ class RateLimitTracker:
         return self.requests_made < self.max_requests
 
     def record_request(self, success: bool = True):
-        """Record a request and handle rate limit responses. """
+        """Record a request and handle rate limit responses."""
         now = time.time()
 
         if now - self.window_start >= self.window_duration:
@@ -69,7 +69,7 @@ class RateLimitTracker:
 
 @dataclass
 class TokenMapping:
-    """Structured token mapping data. """
+    """Structured token mapping data."""
 
     symbol: str
     name: str
@@ -240,7 +240,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         return providers
 
     def _start_background_tasks(self):
-        """Start non-blocking background tasks for data gathering and health monitoring. """
+        """Start non-blocking background tasks for data gathering and health monitoring."""
         # Health monitoring task
         health_task = asyncio.create_task(self._health_monitor_loop())
         self._background_tasks.add(health_task)
@@ -252,7 +252,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         prefetch_task.add_done_callback(self._background_tasks.discard)
 
     async def _health_monitor_loop(self):
-        """Monitor provider health in the background. """
+        """Monitor provider health in the background."""
         while True:
             try:
                 await asyncio.sleep(self._health_check_interval)
@@ -263,7 +263,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
                 logger.error(f"Error in health monitor loop: {e}", exc_info=True)
 
     async def _data_prefetch_loop(self):
-        """Prefetch commonly used token prices in the background. """
+        """Prefetch commonly used token prices in the background."""
         while True:
             try:
                 await asyncio.sleep(120)  # Every 2 minutes
@@ -275,7 +275,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
                 logger.error(f"Error in data prefetch loop: {e}", exc_info=True)
 
     async def _check_provider_health(self):
-        """Check and update provider health status. """
+        """Check and update provider health status."""
         for provider in self._providers.values():
             try:
                 # Simple health check - try to get a common token price
@@ -304,7 +304,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
                 provider.is_healthy = provider.consecutive_failures < 5
 
     async def _prefetch_common_tokens(self):
-        """Prefetch prices for commonly traded tokens. """
+        """Prefetch prices for commonly traded tokens."""
         common_tokens = ["WETH", "USDT", "USDC", "DAI", "WBTC"]
         self._data_gathering_active = True
 
@@ -324,7 +324,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             self._data_gathering_active = False
 
     async def _load_token_mappings_async(self):
-        """Load token mappings asynchronously, starting with well-known tokens only. """
+        """Load token mappings asynchronously, starting with well-known tokens only."""
         token_file = get_resource_path("tokens", "all_chains_tokens.json")
 
         try:
@@ -356,7 +356,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             # Continue with empty mappings rather than failing
 
     async def _load_all_tokens_async(self):
-        """Load all remaining tokens on-demand. """
+        """Load all remaining tokens on-demand."""
         if self._all_tokens_loaded:
             return
 
@@ -387,7 +387,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             logger.error(f"Failed to load additional token mappings: {e}")
 
     def _parse_token_json(self, token_file: str) -> List[Dict]:
-        """Parse token JSON file synchronously (called in executor). """
+        """Parse token JSON file synchronously (called in executor)."""
         try:
             with open(token_file, "r", encoding="utf-8") as f:
                 return json.load(f)
@@ -396,7 +396,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return []
 
     def _parse_token_data(self, token_data: Dict) -> Optional[TokenMapping]:
-        """Parse individual token data with validation. """
+        """Parse individual token data with validation."""
         try:
             symbol = token_data.get("symbol", "").strip()
             name = token_data.get("name", "").strip()
@@ -439,7 +439,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_price_non_blocking(self, token_symbol: str) -> Optional[float]:
-        """Get price without blocking main operations. """
+        """Get price without blocking main operations."""
         try:
             return await asyncio.wait_for(self.get_price(token_symbol), timeout=10.0)
         except asyncio.TimeoutError:
@@ -623,7 +623,11 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         self, symbol: str, token_id: Optional[str] = None
     ) -> Optional[float]:
         provider = self._providers.get("coingecko")
-        if not provider or not provider.is_healthy or self._is_provider_backed_off("coingecko"):
+        if (
+            not provider
+            or not provider.is_healthy
+            or self._is_provider_backed_off("coingecko")
+        ):
             return None
 
         # Check rate limit before making request
@@ -666,7 +670,11 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         self, symbol: str, binance_symbol: Optional[str] = None
     ) -> Optional[float]:
         provider = self._providers.get("binance")
-        if not provider or not provider.is_healthy or self._is_provider_backed_off("binance"):
+        if (
+            not provider
+            or not provider.is_healthy
+            or self._is_provider_backed_off("binance")
+        ):
             return None
 
         # Check rate limit before making request
@@ -792,7 +800,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             )
 
     async def close(self):
-        """Clean up resources and cancel background tasks. """
+        """Clean up resources and cancel background tasks."""
         self._closed = True
         self._initialized = False
 
@@ -814,7 +822,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         self._session = None
 
     def get_provider_health_status(self) -> Dict[str, Dict[str, Any]]:
-        """Get health status of all providers. """
+        """Get health status of all providers."""
         status = {}
         for name, provider in self._providers.items():
             status[name] = {
@@ -841,67 +849,100 @@ class ExternalAPIManager(metaclass=SingletonMeta):
                 return None
 
             if not self._onchain_web3:
-                self._onchain_web3 = await Web3ConnectionFactory.create_connection(self._primary_chain_id)
+                self._onchain_web3 = await Web3ConnectionFactory.create_connection(
+                    self._primary_chain_id
+                )
 
             aggregator_abi = [
-                {"inputs": [], "name": "decimals", "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}], "stateMutability": "view", "type": "function"},
-                {"inputs": [], "name": "latestRoundData", "outputs": [
-                    {"internalType": "uint80", "name": "roundId", "type": "uint80"},
-                    {"internalType": "int256", "name": "answer", "type": "int256"},
-                    {"internalType": "uint256", "name": "startedAt", "type": "uint256"},
-                    {"internalType": "uint256", "name": "updatedAt", "type": "uint256"},
-                    {"internalType": "uint80", "name": "answeredInRound", "type": "uint80"},
-                ], "stateMutability": "view", "type": "function"},
+                {
+                    "inputs": [],
+                    "name": "decimals",
+                    "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}],
+                    "stateMutability": "view",
+                    "type": "function",
+                },
+                {
+                    "inputs": [],
+                    "name": "latestRoundData",
+                    "outputs": [
+                        {"internalType": "uint80", "name": "roundId", "type": "uint80"},
+                        {"internalType": "int256", "name": "answer", "type": "int256"},
+                        {
+                            "internalType": "uint256",
+                            "name": "startedAt",
+                            "type": "uint256",
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "updatedAt",
+                            "type": "uint256",
+                        },
+                        {
+                            "internalType": "uint80",
+                            "name": "answeredInRound",
+                            "type": "uint80",
+                        },
+                    ],
+                    "stateMutability": "view",
+                    "type": "function",
+                },
             ]
             contract = self._onchain_web3.eth.contract(
                 address=self._onchain_web3.to_checksum_address(feed_address),
                 abi=aggregator_abi,
             )
             decimals = await contract.functions.decimals().call()
-            _, answer, _, updated_at, _ = await contract.functions.latestRoundData().call()
+            _, answer, _, updated_at, _ = (
+                await contract.functions.latestRoundData().call()
+            )
             if answer is None or int(answer) <= 0:
                 return None
             # basic staleness check: 1 hour
             import time as _time
+
             if updated_at and (_time.time() - int(updated_at) > 3600):
-                logger.debug(f"Oracle price stale for {token_symbol}: updated_at={updated_at}")
+                logger.debug(
+                    f"Oracle price stale for {token_symbol}: updated_at={updated_at}"
+                )
                 return None
-            price = float(answer) / (10 ** decimals)
+            price = float(answer) / (10**decimals)
             return price
         except Exception as e:
             logger.debug(f"Oracle price fetch failed for {token_symbol}: {e}")
             return None
 
     def reset_failed_tokens(self):
-        """Reset the failed tokens list to give them another chance. """
+        """Reset the failed tokens list to give them another chance."""
         count = len(self._failed_tokens)
         self._failed_tokens.clear()
         logger.info(f"Reset {count} failed tokens for retry.")
         self._provider_backoff.clear()
 
     def get_cache_stats(self) -> Dict[str, Any]:
-        """Get cache statistics. """
+        """Get cache statistics."""
         return {
             "price_cache_size": len(self._price_cache),
             "failed_tokens_count": len(self._failed_tokens),
             "token_mappings_count": len(self._token_mappings),
             "data_gathering_active": self._data_gathering_active,
             "provider_backoff": {
-                name: ts for name, ts in self._provider_backoff.items() if ts > time.time()
+                name: ts
+                for name, ts in self._provider_backoff.items()
+                if ts > time.time()
             },
         }
 
     def _is_provider_backed_off(self, name: str) -> bool:
-        """Check if provider is currently in backoff. """
+        """Check if provider is currently in backoff."""
         ts = self._provider_backoff.get(name)
         return ts is not None and ts > time.time()
 
     def _backoff_provider(self, name: str, delay_seconds: int) -> None:
-        """Set a simple time-based backoff for a provider. """
+        """Set a simple time-based backoff for a provider."""
         self._provider_backoff[name] = time.time() + delay_seconds
 
     async def get_market_sentiment(self, token_symbol: str) -> Optional[float]:
-        """Get market sentiment score for a token (-1 to 1 scale). """
+        """Get market sentiment score for a token (-1 to 1 scale)."""
         await self._initialize()
 
         try:
@@ -935,7 +976,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def get_volatility_index(self, token_symbol: str) -> Optional[float]:
-        """Get volatility index for a token (0-1 scale). """
+        """Get volatility index for a token (0-1 scale)."""
         await self._initialize()
 
         try:
@@ -978,7 +1019,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def get_trading_volume_24h(self, token_symbol: str) -> Optional[float]:
-        """Get 24h trading volume in USD. """
+        """Get 24h trading volume in USD."""
         await self._initialize()
 
         try:
@@ -1001,7 +1042,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def get_market_cap(self, token_symbol: str) -> Optional[float]:
-        """Get market capitalization in USD. """
+        """Get market capitalization in USD."""
         await self._initialize()
 
         try:
@@ -1021,7 +1062,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def get_comprehensive_market_data(self, token_symbol: str) -> Dict[str, Any]:
-        """Get comprehensive market data for a token. """
+        """Get comprehensive market data for a token."""
         await self._initialize()
 
         tasks = [
@@ -1053,7 +1094,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         }
 
     async def _get_binance_volume(self, token_symbol: str) -> Optional[float]:
-        """Fetch 24h volume from Binance if available. """
+        """Fetch 24h volume from Binance if available."""
         try:
             provider = self._providers.get("binance")
             if not provider or not provider.is_healthy:
@@ -1075,11 +1116,11 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_coinmarketcap_market_cap(self, token_symbol: str) -> Optional[float]:
-        """CoinMarketCap is no longer used (API key required); keep stub for compatibility. """
+        """CoinMarketCap is no longer used (API key required); keep stub for compatibility."""
         return None
 
     async def _get_coingecko_sentiment(self, token_symbol: str) -> Optional[float]:
-        """Get sentiment from CoinGecko API. """
+        """Get sentiment from CoinGecko API."""
         try:
             coin_id = self._get_coingecko_id(token_symbol)
             if not coin_id:
@@ -1113,7 +1154,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_coingecko_volume(self, token_symbol: str) -> Optional[float]:
-        """Fetch 24h USD volume via CoinGecko public endpoint. """
+        """Fetch 24h USD volume via CoinGecko public endpoint."""
         try:
             coin_id = self._get_coingecko_id(token_symbol)
             if not coin_id:
@@ -1143,7 +1184,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_onchain_price(self, token_symbol: str) -> Optional[float]:
-        """Derive USD price from on-chain Uniswap V2 reserves (no external API). """
+        """Derive USD price from on-chain Uniswap V2 reserves (no external API)."""
         try:
             web3 = await self._get_onchain_web3()
             if not web3:
@@ -1188,7 +1229,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_onchain_supply(self, token_symbol: str) -> Optional[float]:
-        """Get circulating supply from on-chain totalSupply (approx). """
+        """Get circulating supply from on-chain totalSupply (approx)."""
         try:
             web3 = await self._get_onchain_web3()
             if not web3:
@@ -1229,7 +1270,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_onchain_web3(self):
-        """Lazy-create an on-chain AsyncWeb3 connection for public RPC usage. """
+        """Lazy-create an on-chain AsyncWeb3 connection for public RPC usage."""
         if self._onchain_web3:
             return self._onchain_web3
         try:
@@ -1244,7 +1285,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
     async def _get_uniswap_v2_pair(
         self, web3, token_a: str, token_b: str
     ) -> Optional[str]:
-        """Fetch the pair address from Uniswap V2 factory. """
+        """Fetch the pair address from Uniswap V2 factory."""
         try:
             factory_address = (
                 "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"  # Uniswap V2 mainnet
@@ -1284,7 +1325,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_pair_reserves(self, web3, pair_address: str) -> Optional[tuple]:
-        """Get reserves from a Uniswap V2 pair. """
+        """Get reserves from a Uniswap V2 pair."""
         try:
             pair_abi = [
                 {
@@ -1322,7 +1363,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
     async def _get_pair_token(
         self, web3, pair_address: str, index: int
     ) -> Optional[str]:
-        """Get token0 or token1 address from a Uniswap V2 pair. """
+        """Get token0 or token1 address from a Uniswap V2 pair."""
         try:
             fn = "token0" if index == 0 else "token1"
             abi = [
@@ -1345,7 +1386,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_coingecko_market_cap(self, token_symbol: str) -> Optional[float]:
-        """Fetch market cap using CoinGecko's public API. """
+        """Fetch market cap using CoinGecko's public API."""
         try:
             coin_id = self._get_coingecko_id(token_symbol)
             if not coin_id:
@@ -1373,7 +1414,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_coingecko_supply(self, token_symbol: str) -> Optional[float]:
-        """Fetch circulating supply from CoinGecko as a fallback for market cap. """
+        """Fetch circulating supply from CoinGecko as a fallback for market cap."""
         try:
             coin_id = self._get_coingecko_id(token_symbol)
             if not coin_id:
@@ -1400,7 +1441,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_social_sentiment(self, token_symbol: str) -> Optional[float]:
-        """Get social media sentiment with multiple data sources. """
+        """Get social media sentiment with multiple data sources."""
         try:
             # Multiple sentiment analysis approaches
             sentiment_sources = []
@@ -1439,7 +1480,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_reddit_sentiment(self, token_symbol: str) -> Optional[float]:
-        """Get Reddit sentiment from social data APIs. """
+        """Get Reddit sentiment from social data APIs."""
         try:
             # Use CoinGecko social stats as proxy for Reddit sentiment
             url = f"https://api.coingecko.com/api/v3/coins/{self._get_coingecko_id(token_symbol)}"
@@ -1471,7 +1512,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_twitter_sentiment(self, token_symbol: str) -> Optional[float]:
-        """Get Twitter sentiment proxy from search trends. """
+        """Get Twitter sentiment proxy from search trends."""
         try:
             # Use Google Trends as proxy for social interest
             # In production, would use Twitter API or sentiment analysis services
@@ -1497,7 +1538,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     async def _get_momentum_sentiment(self, token_symbol: str) -> Optional[float]:
-        """Calculate sentiment based on recent price momentum. """
+        """Calculate sentiment based on recent price momentum."""
         try:
             # Get recent price data to calculate momentum
             historical_prices = await self._get_historical_prices(token_symbol, days=7)
@@ -1528,7 +1569,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
     async def _get_community_activity_sentiment(
         self, token_symbol: str
     ) -> Optional[float]:
-        """Get sentiment based on community activity metrics. """
+        """Get sentiment based on community activity metrics."""
         try:
             # Use GitHub activity, developer commits, etc. as sentiment proxy
             url = f"https://api.coingecko.com/api/v3/coins/{self._get_coingecko_id(token_symbol)}"
@@ -1554,7 +1595,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return None
 
     def _get_heuristic_sentiment(self, token_symbol: str) -> float:
-        """Fallback sentiment based on token characteristics. """
+        """Fallback sentiment based on token characteristics."""
         tier_1_tokens = ["BTC", "ETH", "WBTC", "WETH"]
         tier_2_tokens = ["UNI", "LINK", "AAVE", "COMP", "MKR"]
         stablecoins = ["USDC", "USDT", "DAI", "FRAX"]
@@ -1569,7 +1610,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return -0.1  # Slightly negative for unknown tokens
 
     def _get_coingecko_id(self, token_symbol: str) -> str:
-        """Map token symbol to CoinGecko ID. """
+        """Map token symbol to CoinGecko ID."""
         symbol_map = {
             "ETH": "ethereum",
             "WETH": "ethereum",
@@ -1617,7 +1658,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
     async def _get_historical_prices(
         self, token_symbol: str, days: int = 30
     ) -> List[float]:
-        """Get historical prices for volatility calculation. """
+        """Get historical prices for volatility calculation."""
         try:
             # Map token symbol to CoinGecko ID
             symbol_map = {

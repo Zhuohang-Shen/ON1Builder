@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 class MarketDataFeed:
-    """ market data feed with volatility analysis, trend detection, and market sentiment. """
+    """market data feed with volatility analysis, trend detection, and market sentiment."""
 
     def __init__(self, web3: Any):
         self._web3 = web3
@@ -89,7 +89,7 @@ class MarketDataFeed:
         logger.info("Closing Market Data Feed.")
 
     async def get_price(self, token_symbol: str) -> Optional[Decimal]:
-        """Get current price with automatic caching and history tracking. """
+        """Get current price with automatic caching and history tracking."""
         if not token_symbol.isascii():
             logger.debug("Skipping non-ASCII token symbol: %s", token_symbol)
             return None
@@ -136,7 +136,7 @@ class MarketDataFeed:
             return None
 
     def _update_price_history(self, symbol: str, price: Decimal):
-        """Updates price history for volatility and trend analysis. """
+        """Updates price history for volatility and trend analysis."""
         now = datetime.now()
 
         if symbol not in self._price_history:
@@ -155,7 +155,7 @@ class MarketDataFeed:
     async def get_volatility(
         self, token_symbol: str, timeframe_minutes: int = 60
     ) -> Optional[float]:
-        """Calculate volatility for a token over the specified timeframe. """
+        """Calculate volatility for a token over the specified timeframe."""
         symbol_upper = token_symbol.upper()
         cache_key = f"{symbol_upper}_{timeframe_minutes}m"
 
@@ -195,7 +195,7 @@ class MarketDataFeed:
     async def get_price_trend(
         self, token_symbol: str, timeframe_minutes: int = 60
     ) -> Optional[str]:
-        """Determine price trend: 'bullish', 'bearish', or 'sideways'. """
+        """Determine price trend: 'bullish', 'bearish', or 'sideways'."""
         symbol_upper = token_symbol.upper()
         history = self._price_history.get(symbol_upper, [])
 
@@ -228,7 +228,7 @@ class MarketDataFeed:
             return "sideways"
 
     async def get_market_sentiment(self, token_symbol: str) -> float:
-        """Get market sentiment score (-1 to 1) for a token. """
+        """Get market sentiment score (-1 to 1) for a token."""
         # Prefer the central API manager sentiment to avoid duplicate heuristics.
         try:
             sentiment = await self._api_manager.get_market_sentiment(token_symbol)
@@ -243,7 +243,7 @@ class MarketDataFeed:
     async def get_optimal_slippage(
         self, token_symbol: str, trade_size_usd: Decimal
     ) -> Decimal:
-        """Calculate optimal slippage based on volatility and trade size. """
+        """Calculate optimal slippage based on volatility and trade size."""
         volatility = await self.get_volatility(token_symbol, 30)  # 30-minute volatility
 
         if volatility is None:
@@ -263,7 +263,7 @@ class MarketDataFeed:
         return max(min(optimal_slippage, Decimal("0.05")), Decimal("0.001"))
 
     async def should_avoid_trading(self, token_symbol: str) -> bool:
-        """Determine if trading should be avoided due to high volatility or poor sentiment. """
+        """Determine if trading should be avoided due to high volatility or poor sentiment."""
         volatility = await self.get_volatility(token_symbol, 60)
         sentiment = await self.get_market_sentiment(token_symbol)
 
@@ -320,7 +320,7 @@ class MarketDataFeed:
                 await asyncio.sleep(60)
 
     async def _analysis_loop(self):
-        """Background loop for market analysis and sentiment calculation. """
+        """Background loop for market analysis and sentiment calculation."""
         cleanup_counter = 0
         while self._is_running:
             try:
@@ -341,7 +341,7 @@ class MarketDataFeed:
                 await asyncio.sleep(300)
 
     async def _calculate_market_sentiment(self):
-        """Calculate market sentiment based on price movements and volatility. """
+        """Calculate market sentiment based on price movements and volatility."""
         try:
             for symbol, history in self._price_history.items():
                 if len(history) < 10:
@@ -373,7 +373,7 @@ class MarketDataFeed:
             logger.error(f"Error calculating market sentiment: {e}")
 
     async def _detect_market_anomalies(self):
-        """Detect unusual market conditions that might indicate opportunities or risks. """
+        """Detect unusual market conditions that might indicate opportunities or risks."""
         try:
             anomalies = []
 
@@ -424,7 +424,7 @@ class MarketDataFeed:
             logger.error(f"Error detecting market anomalies: {e}")
 
     def reset_failed_tokens(self):
-        """Backward-compatible alias; delegates to the ExternalAPIManager. """
+        """Backward-compatible alias; delegates to the ExternalAPIManager."""
         self._failed_tokens.clear()
         self._failed_token_counts.clear()
         self._api_manager.reset_failed_tokens()
@@ -449,7 +449,7 @@ class MarketDataFeed:
         self._failed_tokens.discard(symbol_upper)
 
     def get_market_data_summary(self) -> Dict[str, Any]:
-        """Get comprehensive market data summary for monitoring. """
+        """Get comprehensive market data summary for monitoring."""
         summary = {
             "total_tracked_symbols": len(self._price_history),
             "cache_hit_ratio": len(self._price_cache)

@@ -7,7 +7,7 @@ from typing import Any, Dict
 
 
 class ConfigRedactor:
-    """Utility class for redacting sensitive configuration values. """
+    """Utility class for redacting sensitive configuration values."""
 
     # Define sensitive keys that should be redacted
     SENSITIVE_KEYS = {
@@ -51,7 +51,7 @@ class ConfigRedactor:
 
     @classmethod
     def _redact_recursive(cls, obj: Any) -> Any:
-        """Recursively redact sensitive values in nested structures. """
+        """Recursively redact sensitive values in nested structures."""
         if isinstance(obj, dict):
             redacted = {}
             for key, value in obj.items():
@@ -67,6 +67,6 @@ class ConfigRedactor:
 
     @classmethod
     def _is_sensitive_key(cls, key: str) -> bool:
-        """Check if a key is considered sensitive. """
+        """Check if a key is considered sensitive."""
         key_lower = key.lower()
         return any(sensitive in key_lower for sensitive in cls.SENSITIVE_KEYS)

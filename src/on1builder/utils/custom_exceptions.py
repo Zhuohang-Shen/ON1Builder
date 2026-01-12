@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, Union
 
 
 class ON1BuilderError(Exception):
-    """Base exception for all custom errors in the ON1Builder application. """
+    """Base exception for all custom errors in the ON1Builder application."""
 
     def __init__(
         self,
@@ -27,7 +27,7 @@ class ON1BuilderError(Exception):
         return self.message
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert exception to dictionary for serialization. """
+        """Convert exception to dictionary for serialization."""
         return {
             "error_type": self.__class__.__name__,
             "message": self.message,
@@ -37,7 +37,7 @@ class ON1BuilderError(Exception):
 
 
 class ConfigurationError(ON1BuilderError):
-    """Raised for errors related to application configuration. """
+    """Raised for errors related to application configuration."""
 
     def __init__(
         self,
@@ -56,7 +56,7 @@ class ConfigurationError(ON1BuilderError):
 
 
 class InitializationError(ON1BuilderError):
-    """Raised when a critical component fails to initialize. """
+    """Raised when a critical component fails to initialize."""
 
     def __init__(
         self,
@@ -69,7 +69,7 @@ class InitializationError(ON1BuilderError):
 
 
 class ConnectionError(ON1BuilderError):
-    """Raised for errors related to network or RPC connections. """
+    """Raised for errors related to network or RPC connections."""
 
     def __init__(
         self,
@@ -90,7 +90,7 @@ class ConnectionError(ON1BuilderError):
 
 
 class TransactionError(ON1BuilderError):
-    """Raised for errors during transaction building, signing, or sending. """
+    """Raised for errors during transaction building, signing, or sending."""
 
     def __init__(
         self,
@@ -117,7 +117,7 @@ class TransactionError(ON1BuilderError):
 
 
 class StrategyExecutionError(ON1BuilderError):
-    """Raised for errors during the execution of a trading strategy. """
+    """Raised for errors during the execution of a trading strategy."""
 
     def __init__(
         self,
@@ -141,7 +141,7 @@ class StrategyExecutionError(ON1BuilderError):
 
 
 class InsufficientFundsError(TransactionError):
-    """Raised when an operation fails due to insufficient wallet balance. """
+    """Raised when an operation fails due to insufficient wallet balance."""
 
     def __init__(
         self,
@@ -162,7 +162,7 @@ class InsufficientFundsError(TransactionError):
 
 
 class APICallError(ON1BuilderError):
-    """Raised when an external API call fails. """
+    """Raised when an external API call fails."""
 
     def __init__(
         self,
@@ -186,7 +186,7 @@ class APICallError(ON1BuilderError):
 
 
 class ValidationError(ON1BuilderError):
-    """Raised when data validation fails. """
+    """Raised when data validation fails."""
 
     def __init__(
         self,
@@ -207,7 +207,7 @@ class ValidationError(ON1BuilderError):
 
 
 class SafetyCheckError(ON1BuilderError):
-    """Raised when a safety check fails. """
+    """Raised when a safety check fails."""
 
     def __init__(
         self,

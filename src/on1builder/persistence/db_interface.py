@@ -70,16 +70,16 @@ class DatabaseInterface:
     # ------------------------------------------------------------------
     @property
     def config(self) -> DatabaseSettings:
-        """Return resolved database settings for legacy callers. """
+        """Return resolved database settings for legacy callers."""
         return self._db_settings
 
     @property
     def settings(self) -> DatabaseSettings:
-        """Alias maintained for callers expecting ``settings`` attribute. """
+        """Alias maintained for callers expecting ``settings`` attribute."""
         return self._db_settings
 
     async def initialize_db(self) -> None:
-        """Creates all database tables based on the ORM models if they don't exist. """
+        """Creates all database tables based on the ORM models if they don't exist."""
         if self._initialized:
             return
         if self._is_stub:
@@ -291,7 +291,7 @@ class DatabaseInterface:
             }
 
     async def close(self) -> None:
-        """Disposes of the database engine connection pool. """
+        """Disposes of the database engine connection pool."""
         if self._engine and hasattr(self._engine, "dispose"):
             await self._engine.dispose()
             logger.info("Closing database and disposing engine connections.")

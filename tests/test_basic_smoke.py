@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 def test_package_version():
-    """Test that the package has correct version. """
+    """Test that the package has correct version."""
     import on1builder
 
     assert on1builder.__version__ == "2.3.0"
@@ -16,7 +16,7 @@ def test_package_version():
 
 
 def test_logging_initialization():
-    """Test that logging can be initialized. """
+    """Test that logging can be initialized."""
     from on1builder.utils.logging_config import get_logger
 
     logger = get_logger("test")
@@ -26,7 +26,7 @@ def test_logging_initialization():
 
 
 def test_container_utility():
-    """Test basic container functionality. """
+    """Test basic container functionality."""
     from on1builder.utils.container import Container
 
     container = Container()
@@ -34,7 +34,7 @@ def test_container_utility():
 
 
 def test_basic_module_structure():
-    """Test that basic module structure is intact. """
+    """Test that basic module structure is intact."""
     # Test that main modules exist
     import on1builder.utils
     import on1builder.core
@@ -48,7 +48,7 @@ def test_basic_module_structure():
 
 
 def test_pyproject_exists():
-    """Test that pyproject.toml exists and has correct version. """
+    """Test that pyproject.toml exists and has correct version."""
     pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
     assert pyproject_path.exists()
 

@@ -157,7 +157,9 @@ class ComponentHealthTracker:
         if recovery_strategy:
             self._recovery_strategies[name] = recovery_strategy
 
-    def report_health(self, name: str, healthy: bool, error: Optional[str] = None) -> None:
+    def report_health(
+        self, name: str, healthy: bool, error: Optional[str] = None
+    ) -> None:
         """Report component health status."""
         if name not in self._health_status:
             self.register_component(name)
@@ -211,7 +213,9 @@ class ComponentHealthTracker:
         """Get failure count for a component."""
         return self._failure_counts.get(component_name, 0)
 
-    def should_attempt_recovery(self, component_name: str, max_failures: int = 3) -> bool:
+    def should_attempt_recovery(
+        self, component_name: str, max_failures: int = 3
+    ) -> bool:
         """Determine if recovery should be attempted."""
         return self.get_failure_count(component_name) < max_failures
 

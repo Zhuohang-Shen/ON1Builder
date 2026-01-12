@@ -1,4 +1,4 @@
-"""Live integration checks for ExternalAPIManager (skipped unless opted in). """
+"""Live integration checks for ExternalAPIManager (skipped unless opted in)."""
 
 import os
 import pytest

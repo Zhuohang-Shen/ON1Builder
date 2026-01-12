@@ -57,7 +57,7 @@ class MainOrchestrator:
         time.sleep(2)  # Small delay to ensure proper startup logging
 
     async def _setup_signal_handlers(self):
-        """Sets up signal handlers for graceful shutdown. """
+        """Sets up signal handlers for graceful shutdown."""
         try:
             loop = asyncio.get_running_loop()
             for sig in (signal.SIGINT, signal.SIGTERM):
@@ -95,7 +95,7 @@ class MainOrchestrator:
         self._is_running = True
         logger.info("Orchestrator initialized!")
         time.sleep(1)  # Small delay for logging clarity
-    
+
         try:
             await self._setup_signal_handlers()
             await self._initialize_database()
@@ -120,7 +120,7 @@ class MainOrchestrator:
             await self._shutdown()
 
     async def _initialize_database(self):
-        """Initialize the database with error handling. """
+        """Initialize the database with error handling."""
         if not self._db_interface:
             raise InitializationError(
                 "Database interface is not initialized", "database"
@@ -135,7 +135,7 @@ class MainOrchestrator:
             )
 
     async def _initialize_workers(self):
-        """Initialize all chain workers with comprehensive error handling. """
+        """Initialize all chain workers with comprehensive error handling."""
         if not self._config.chains:
             raise InitializationError("No chains configured")
 
@@ -146,9 +146,7 @@ class MainOrchestrator:
             try:
                 await self._initialize_chain_worker(chain_id)
                 successful_workers += 1
-                logger.debug(
-                    "Successfully initialized worker for chain %s", chain_id
-                )
+                logger.debug("Successfully initialized worker for chain %s", chain_id)
 
             except Exception as e:
                 failed_chains.append(chain_id)
@@ -159,7 +157,6 @@ class MainOrchestrator:
                     level="ERROR",
                     details={"chain_id": chain_id, "error": str(e)},
                 )
-                
 
         if successful_workers == 0:
             raise InitializationError("No workers were initialized successfully")
@@ -168,7 +165,7 @@ class MainOrchestrator:
             logger.debug(f"Failed to initialize workers for chains: {failed_chains}")
 
     async def _initialize_chain_worker(self, chain_id: int):
-        """Initialize a single chain worker and its balance manager. """
+        """Initialize a single chain worker and its balance manager."""
         worker = ChainWorker(chain_id)
         await worker.initialize()
         self._workers.append(worker)
@@ -180,7 +177,7 @@ class MainOrchestrator:
         self._balance_managers[chain_id] = balance_manager
 
     async def _start_services(self):
-        """Start all services and background tasks. """
+        """Start all services and background tasks."""
         # Initialize multi-chain orchestrator if we have multiple chains
         if len(self._workers) >= 2:
             self._multi_chain_orchestrator = MultiChainOrchestrator(self._workers)
@@ -201,7 +198,7 @@ class MainOrchestrator:
         )
 
     def _get_startup_details(self) -> Dict[str, Any]:
-        """Get startup details for notifications. """
+        """Get startup details for notifications."""
         return {
             "active_chains": self._config.chains,
             "multi_chain_enabled": self._multi_chain_orchestrator is not None,
@@ -211,7 +208,7 @@ class MainOrchestrator:
         }
 
     async def _handle_critical_error(self, error: Exception):
-        """Handle critical errors with proper notifications. """
+        """Handle critical errors with proper notifications."""
         self._error_count += 1
 
         await self._send_alert(
@@ -239,7 +236,7 @@ class MainOrchestrator:
         level: str,
         details: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Safely dispatch a notification if the service is ready. """
+        """Safely dispatch a notification if the service is ready."""
         if not self._notification_service:
             logger.debug(
                 "Notification service not initialized; skipping alert '%s'.", title
@@ -257,14 +254,14 @@ class MainOrchestrator:
             logger.error("Failed to send alert '%s': %s", title, exc, exc_info=True)
 
     async def stop(self, sig: Optional[signal.Signals] = None):
-        """Initiates the graceful shutdown of the application. """
+        """Initiates the graceful shutdown of the application."""
         if not self._shutdown_event.is_set():
             signal_name = f" received signal {sig.name}" if sig else ""
             logger.info(f"Shutdown sequence initiated{signal_name}.")
             self._shutdown_event.set()
 
     async def _shutdown(self):
-        """Performs the actual shutdown of all workers and services. """
+        """Performs the actual shutdown of all workers and services."""
         logger.debug(f"Stopping {len(self._workers)} chain workers...")
 
         # Stop performance monitoring
@@ -309,7 +306,7 @@ class MainOrchestrator:
         logger.info("ON1Builder has been shut down gracefully.")
 
     async def _performance_monitor_loop(self):
-        """Monitors overall system performance and generates periodic reports. """
+        """Monitors overall system performance and generates periodic reports."""
         while self._is_running:
             try:
                 await asyncio.sleep(PERFORMANCE_MONITORING_INTERVAL)
@@ -329,7 +326,7 @@ class MainOrchestrator:
                 await asyncio.sleep(300)  # Wait 5 minutes before retrying
 
     async def _generate_performance_report(self):
-        """Generates comprehensive performance and profit reports. """
+        """Generates comprehensive performance and profit reports."""
         try:
             total_profit = Decimal("0")
             total_trades = 0
@@ -381,7 +378,7 @@ class MainOrchestrator:
             logger.error(f"Error generating performance report: {e}", exc_info=True)
 
     async def _check_system_health(self):
-        """Performs system health checks and alerts on issues. """
+        """Performs system health checks and alerts on issues."""
         try:
             unhealthy_chains = []
 
@@ -423,7 +420,7 @@ class MainOrchestrator:
             logger.error(f"Error in system health check: {e}", exc_info=True)
 
     async def _generate_final_report(self):
-        """Generates a comprehensive final report on system shutdown. """
+        """Generates a comprehensive final report on system shutdown."""
         try:
             await self._generate_performance_report()
 

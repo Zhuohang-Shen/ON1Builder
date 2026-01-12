@@ -91,7 +91,7 @@ class BalanceManager:
         )
 
     async def update_balance(self, force: bool = False) -> Decimal:
-        """ balance update with intelligent caching. """
+        """balance update with intelligent caching."""
         import time
 
         async with self._balance_lock:
@@ -141,7 +141,7 @@ class BalanceManager:
                 return self.current_balance
 
     def _determine_balance_tier(self, balance: Decimal) -> str:
-        """ balance tier determination with configurable thresholds. """
+        """balance tier determination with configurable thresholds."""
         for tier, threshold in reversed(list(BALANCE_TIER_THRESHOLDS.items())):
             if balance >= threshold:
                 return tier
@@ -152,11 +152,11 @@ class BalanceManager:
         return "dust"
 
     def _get_balance_tier(self, balance: Decimal) -> str:
-        """Compatibility wrapper for tier calculation used across the codebase. """
+        """Compatibility wrapper for tier calculation used across the codebase."""
         return self._determine_balance_tier(balance)
 
     async def _handle_tier_change(self, old_tier: str, new_tier: str):
-        """Handles balance tier changes and sends notifications. """
+        """Handles balance tier changes and sends notifications."""
         level = "INFO"
         if new_tier == "emergency":
             level = "CRITICAL"
@@ -360,7 +360,7 @@ class BalanceManager:
     async def _get_token_balance_by_symbol(
         self, token_symbol: str, force_refresh: bool = False
     ) -> Decimal:
-        """Get token balance using symbol lookup. """
+        """Get token balance using symbol lookup."""
         import time
 
         # Check cache first
@@ -403,7 +403,7 @@ class BalanceManager:
         force_refresh: bool = False,
         symbol: Optional[str] = None,
     ) -> Decimal:
-        """Get token balance using contract address. """
+        """Get token balance using contract address."""
         try:
             from on1builder.integrations.abi_registry import ABIRegistry
 
@@ -448,7 +448,7 @@ class BalanceManager:
             return Decimal("0")
 
     async def _get_token_decimals(self, contract) -> int:
-        """Get token decimals with fallback. """
+        """Get token decimals with fallback."""
         try:
             return await contract.functions.decimals().call()
         except Exception:
@@ -456,7 +456,7 @@ class BalanceManager:
             return 18
 
     async def _get_chain_id(self) -> int:
-        """Get chain ID with proper async handling. """
+        """Get chain ID with proper async handling."""
         try:
             chain_id = self.web3.eth.chain_id
             # Check if it's a coroutine that needs to be awaited
@@ -468,7 +468,7 @@ class BalanceManager:
             return 1
 
     def _cache_token_balance(self, identifier: str, balance: Decimal) -> None:
-        """Cache token balance with timestamp. """
+        """Cache token balance with timestamp."""
         import time
 
         self._token_balance_cache[identifier] = (balance, time.time())
@@ -509,7 +509,7 @@ class BalanceManager:
         token: str = "ETH",
         buffer: Optional[Decimal] = None,
     ) -> Decimal:
-        """Ensure the wallet holds enough balance for the requested operation. """
+        """Ensure the wallet holds enough balance for the requested operation."""
         await self.update_balance(force=True)
         available_balance = await self.get_balance(token)
 
@@ -541,15 +541,15 @@ class BalanceManager:
         return available_balance
 
     def get_total_profit(self) -> Decimal:
-        """Returns the total profit earned across all strategies. """
+        """Returns the total profit earned across all strategies."""
         return self._total_profit
 
     def get_session_profit(self) -> Decimal:
-        """Returns the profit earned in the current session. """
+        """Returns the profit earned in the current session."""
         return self._session_profit
 
     def get_profit_by_strategy(self) -> Dict[str, Decimal]:
-        """Returns profit breakdown by strategy. """
+        """Returns profit breakdown by strategy."""
         return self._profit_by_strategy.copy()
 
     async def record_profit(
@@ -559,7 +559,7 @@ class BalanceManager:
         context: Optional[str] = None,
         gas_cost: Decimal = Decimal("0"),
     ):
-        """ profit recording with comprehensive analytics. """
+        """profit recording with comprehensive analytics."""
         profit_amount = Decimal(str(profit_amount))
 
         # Backwards compatibility: third positional argument as gas cost
@@ -620,7 +620,7 @@ class BalanceManager:
         )
 
     def get_profit_summary(self) -> Dict[str, Any]:
-        """Get comprehensive profit summary with ON1Builder metrics. """
+        """Get comprehensive profit summary with ON1Builder metrics."""
         total_trades = self._performance_metrics["total_trades"]
         profitable_trades = self._performance_metrics["profitable_trades"]
         total_gas = self._performance_metrics["total_gas_spent"]
@@ -651,7 +651,7 @@ class BalanceManager:
         }
 
     def get_profit_stats(self, recent_limit: int = 50) -> Dict[str, Any]:
-        """Return precise profit metrics for analytics and testing. """
+        """Return precise profit metrics for analytics and testing."""
         net_profit = self._total_profit - self._performance_metrics["total_gas_spent"]
 
         recent_entries = [
@@ -677,7 +677,7 @@ class BalanceManager:
         }
 
     def get_recent_performance(self, hours: int = 24) -> Dict[str, Any]:
-        """Get performance metrics for recent period. """
+        """Get performance metrics for recent period."""
         import time
 
         cutoff_time = time.time() - (hours * 3600)
@@ -708,7 +708,7 @@ class BalanceManager:
         }
 
     def _analyze_strategy_performance(self, trades: List[Dict]) -> Dict[str, Dict]:
-        """Analyze performance by strategy. """
+        """Analyze performance by strategy."""
         strategy_stats = {}
 
         for trade in trades:
@@ -738,11 +738,12 @@ class BalanceManager:
         return strategy_stats
 
     def get_total_balance_usd(self) -> Decimal:
-        """Calculate total portfolio value in USD (using binance API for price data). """
-        eth_balance = self.current_balance or Decimal("0") 
+        """Calculate total portfolio value in USD (using binance API for price data)."""
+        eth_balance = self.current_balance or Decimal("0")
 
-        # call binance API to get ETH price and convert balance from eth to USD 
+        # call binance API to get ETH price and convert balance from eth to USD
         from on1builder.monitoring.market_data_feed import MarketDataFeed
+
         market_data = MarketDataFeed()
         eth_price = market_data.get_token_price_usd("ETH")
         total_usd = eth_balance * Decimal(str(eth_price))

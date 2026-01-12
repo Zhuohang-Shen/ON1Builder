@@ -60,7 +60,7 @@ class NonceManager:
         cls._instances.clear()
 
     async def _initialize_nonce(self):
-        """Fetches the initial nonce from the blockchain. """
+        """Fetches the initial nonce from the blockchain."""
         for attempt in range(settings.connection_retry_count):
             try:
                 # 'pending' includes transactions in the mempool

@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class MemoryMetrics:
-    """Memory usage metrics snapshot. """
+    """Memory usage metrics snapshot."""
 
     timestamp: datetime
     total_memory_mb: float
@@ -31,7 +31,7 @@ class MemoryMetrics:
 
 
 class MemoryOptimizer:
-    """Advanced memory optimization manager for long-running MEV operations. """
+    """Advanced memory optimization manager for long-running MEV operations."""
 
     def __init__(
         self,
@@ -59,7 +59,7 @@ class MemoryOptimizer:
         )
 
     async def start_monitoring(self):
-        """Start background memory monitoring and optimization. """
+        """Start background memory monitoring and optimization."""
         if self._is_running:
             logger.warning("Memory monitoring is already running")
             return
@@ -69,7 +69,7 @@ class MemoryOptimizer:
         logger.info("Memory monitoring started")
 
     async def stop_monitoring(self):
-        """Stop background memory monitoring. """
+        """Stop background memory monitoring."""
         if not self._is_running:
             return
 
@@ -83,12 +83,12 @@ class MemoryOptimizer:
         logger.info("Memory monitoring stopped")
 
     def register_cleanup_callback(self, callback: Callable[[], None]):
-        """Register a cleanup callback to be called during memory optimization. """
+        """Register a cleanup callback to be called during memory optimization."""
         self._cleanup_callbacks.append(callback)
         logger.debug(f"Registered cleanup callback: {callback.__name__}")
 
     def get_current_metrics(self) -> MemoryMetrics:
-        """Get current memory usage metrics. """
+        """Get current memory usage metrics."""
         # System memory info
         memory = psutil.virtual_memory()
 
@@ -109,7 +109,7 @@ class MemoryOptimizer:
         )
 
     async def force_cleanup(self) -> Dict[str, Any]:
-        """Force immediate memory cleanup and return statistics. """
+        """Force immediate memory cleanup and return statistics."""
         logger.info("Forcing memory cleanup")
 
         # Get metrics before cleanup
@@ -163,7 +163,7 @@ class MemoryOptimizer:
         return cleanup_stats
 
     async def _monitoring_loop(self):
-        """Background monitoring loop. """
+        """Background monitoring loop."""
         while self._is_running:
             try:
                 # Get current metrics
@@ -211,7 +211,7 @@ class MemoryOptimizer:
                 await asyncio.sleep(60)  # Back off on error
 
     def get_memory_analytics(self) -> Dict[str, Any]:
-        """Get comprehensive memory analytics. """
+        """Get comprehensive memory analytics."""
         if not self._metrics_history:
             return {"error": "No metrics available"}
 
@@ -271,7 +271,7 @@ _memory_optimizer: Optional[MemoryOptimizer] = None
 
 
 def get_memory_optimizer() -> MemoryOptimizer:
-    """Get the global memory optimizer instance. """
+    """Get the global memory optimizer instance."""
     global _memory_optimizer
     if _memory_optimizer is None:
         _memory_optimizer = MemoryOptimizer()
@@ -279,14 +279,14 @@ def get_memory_optimizer() -> MemoryOptimizer:
 
 
 async def initialize_memory_optimization():
-    """Initialize global memory optimization. """
+    """Initialize global memory optimization."""
     optimizer = get_memory_optimizer()
     await optimizer.start_monitoring()
     logger.debug("Global memory optimization initialized")
 
 
 async def cleanup_memory_optimization():
-    """Cleanup global memory optimization. """
+    """Cleanup global memory optimization."""
     global _memory_optimizer
     if _memory_optimizer:
         await _memory_optimizer.stop_monitoring()

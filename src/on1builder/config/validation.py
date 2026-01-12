@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 
 class ConfigValidator:
-    """Validates configuration settings for ON1Builder. """
+    """Validates configuration settings for ON1Builder."""
 
     # Chain ID validation ranges
     VALID_CHAIN_IDS = {
@@ -42,7 +42,7 @@ class ConfigValidator:
 
     @classmethod
     def validate_wallet_address(cls, address: str) -> str:
-        """Validate Ethereum wallet address format. """
+        """Validate Ethereum wallet address format."""
         if not address:
             raise ValidationError(
                 "Wallet address cannot be empty", field="wallet_address"
@@ -60,7 +60,7 @@ class ConfigValidator:
 
     @classmethod
     def validate_private_key(cls, private_key: str) -> str:
-        """Validate private key format. """
+        """Validate private key format."""
         if not private_key:
             raise ValidationError("Private key cannot be empty", field="wallet_key")
 
@@ -76,7 +76,7 @@ class ConfigValidator:
 
     @classmethod
     def validate_chain_ids(cls, chain_ids: List[int]) -> List[int]:
-        """Validate list of chain IDs. """
+        """Validate list of chain IDs."""
         if not chain_ids:
             raise ValidationError(
                 "At least one chain ID must be specified", field="chains"
@@ -97,7 +97,7 @@ class ConfigValidator:
     def validate_rpc_urls(
         cls, rpc_urls: Dict[int, str], chain_ids: List[int]
     ) -> Dict[int, str]:
-        """Validate RPC URLs for specified chains. """
+        """Validate RPC URLs for specified chains."""
         missing_rpcs = [cid for cid in chain_ids if cid not in rpc_urls]
         if missing_rpcs:
             raise ConfigurationError(
@@ -124,11 +124,15 @@ class ConfigValidator:
             # Basic sanity checks to catch obvious misconfigurations
             lower = url.lower()
             if "mainnet" in lower and chain_id not in (1,):
-                logger.warning(f"RPC URL for chain {chain_id} looks like mainnet: {url}")
+                logger.warning(
+                    f"RPC URL for chain {chain_id} looks like mainnet: {url}"
+                )
             if "goerli" in lower and chain_id not in (5, 420, 421613):
                 logger.warning(f"RPC URL for chain {chain_id} looks like Goerli: {url}")
             if "sepolia" in lower and chain_id not in (11155111,):
-                logger.warning(f"RPC URL for chain {chain_id} looks like Sepolia: {url}")
+                logger.warning(
+                    f"RPC URL for chain {chain_id} looks like Sepolia: {url}"
+                )
             if "bsc" in lower and chain_id not in (56, 97):
                 logger.warning(f"RPC URL for chain {chain_id} looks like BSC: {url}")
             if "bitcoin" in lower or "btc" in lower:
@@ -146,13 +150,21 @@ class ConfigValidator:
                     value=url,
                 )
             if "polygon" in lower and chain_id not in (137, 80001):
-                logger.warning(f"RPC URL for chain {chain_id} looks like Polygon: {url}")
+                logger.warning(
+                    f"RPC URL for chain {chain_id} looks like Polygon: {url}"
+                )
             if "arbitrum" in lower and chain_id not in (42161, 421613):
-                logger.warning(f"RPC URL for chain {chain_id} looks like Arbitrum: {url}")
+                logger.warning(
+                    f"RPC URL for chain {chain_id} looks like Arbitrum: {url}"
+                )
             if "optimism" in lower and chain_id not in (10, 420):
-                logger.warning(f"RPC URL for chain {chain_id} looks like Optimism: {url}")
+                logger.warning(
+                    f"RPC URL for chain {chain_id} looks like Optimism: {url}"
+                )
             if "avalanche" in lower and chain_id not in (43114, 43113):
-                logger.warning(f"RPC URL for chain {chain_id} looks like Avalanche: {url}")
+                logger.warning(
+                    f"RPC URL for chain {chain_id} looks like Avalanche: {url}"
+                )
             if "fantom" in lower and chain_id not in (250, 4002):
                 logger.warning(f"RPC URL for chain {chain_id} looks like Fantom: {url}")
         return rpc_urls
@@ -161,7 +173,7 @@ class ConfigValidator:
     def validate_balance_thresholds(
         cls, emergency_threshold: float, low_threshold: float, high_threshold: float
     ) -> None:
-        """Validate balance threshold configuration. """
+        """Validate balance threshold configuration."""
         if emergency_threshold < 0:
             raise ValidationError(
                 "Emergency balance threshold cannot be negative",
@@ -190,7 +202,7 @@ class ConfigValidator:
         gas_price_multiplier: float,
         default_gas_limit: int,
     ) -> None:
-        """Validate gas-related settings. """
+        """Validate gas-related settings."""
         if max_gas_price_gwei <= 0:
             raise ValidationError(
                 "Maximum gas price must be positive",
@@ -225,7 +237,7 @@ class ConfigValidator:
         min_profit_percentage: float,
         slippage_tolerance: float,
     ) -> None:
-        """Validate profit-related settings. """
+        """Validate profit-related settings."""
         if min_profit_eth < 0:
             raise ValidationError(
                 "Minimum profit cannot be negative",
@@ -251,7 +263,7 @@ class ConfigValidator:
     def validate_ml_settings(
         cls, learning_rate: float, exploration_rate: float, decay_rate: float
     ) -> None:
-        """Validate machine learning settings. """
+        """Validate machine learning settings."""
         if not 0 < learning_rate <= 1:
             raise ValidationError(
                 "Learning rate must be between 0 and 1",
@@ -277,7 +289,7 @@ class ConfigValidator:
     def validate_notification_settings(
         cls, channels: List[str], min_level: str
     ) -> None:
-        """Validate notification settings. """
+        """Validate notification settings."""
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if min_level.upper() not in valid_levels:
             raise ValidationError(
@@ -298,7 +310,7 @@ class ConfigValidator:
 
     @classmethod
     def validate_file_paths(cls, paths: Dict[str, Union[str, Path]]) -> None:
-        """Validate file paths exist and are accessible. """
+        """Validate file paths exist and are accessible."""
         for path_name, path_value in paths.items():
             if not path_value:
                 continue
@@ -430,27 +442,45 @@ class ConfigValidator:
 
             # Validate submission mode and simulation backend
             if "submission_mode" in config_dict:
-                if config_dict["submission_mode"] not in ("public", "private", "bundle"):
+                if config_dict["submission_mode"] not in (
+                    "public",
+                    "private",
+                    "bundle",
+                ):
                     raise ValidationError(
                         "submission_mode must be 'public', 'private', or 'bundle'",
                         field="submission_mode",
                         value=config_dict["submission_mode"],
                     )
             if "simulation_backend" in config_dict:
-                if config_dict["simulation_backend"] not in ("eth_call", "anvil", "tenderly"):
+                if config_dict["simulation_backend"] not in (
+                    "eth_call",
+                    "anvil",
+                    "tenderly",
+                ):
                     raise ValidationError(
                         "simulation_backend must be one of: eth_call, anvil, tenderly",
                         field="simulation_backend",
                         value=config_dict["simulation_backend"],
                     )
-            if "submission_mode" in config_dict and config_dict["submission_mode"] == "private":
+            if (
+                "submission_mode" in config_dict
+                and config_dict["submission_mode"] == "private"
+            ):
                 if not config_dict.get("private_rpc_url"):
                     raise ValidationError(
                         "private_rpc_url is required when submission_mode is 'private'",
                         field="private_rpc_url",
                     )
-            if "submission_mode" in config_dict and config_dict["submission_mode"] == "bundle":
-                missing = [k for k in ("bundle_relay_url", "bundle_relay_auth_token") if not config_dict.get(k)]
+            if (
+                "submission_mode" in config_dict
+                and config_dict["submission_mode"] == "bundle"
+            ):
+                missing = [
+                    k
+                    for k in ("bundle_relay_url", "bundle_relay_auth_token")
+                    if not config_dict.get(k)
+                ]
                 if missing:
                     raise ValidationError(
                         f"bundle submission requires: {missing}",
@@ -472,10 +502,17 @@ class ConfigValidator:
                 config_dict["bundle_signer_key"] = cls.validate_private_key(
                     config_dict["bundle_signer_key"]
                 )
-            if "simulation_backend" in config_dict and config_dict["simulation_backend"] == "tenderly":
+            if (
+                "simulation_backend" in config_dict
+                and config_dict["simulation_backend"] == "tenderly"
+            ):
                 missing = [
                     key
-                    for key in ("tenderly_account_slug", "tenderly_project_slug", "tenderly_access_token")
+                    for key in (
+                        "tenderly_account_slug",
+                        "tenderly_project_slug",
+                        "tenderly_access_token",
+                    )
                     if not config_dict.get(key)
                 ]
                 if missing:

@@ -1,4 +1,4 @@
-"""Logic-level tests for TransactionManager profit and safety handling. """
+"""Logic-level tests for TransactionManager profit and safety handling."""
 
 import asyncio
 from decimal import Decimal

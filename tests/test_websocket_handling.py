@@ -11,12 +11,12 @@ import asyncio
 
 @pytest.mark.asyncio
 async def test_websocket_none_handling():
-    """Test that None values are handled properly in websocket connections. """
+    """Test that None values are handled properly in websocket connections."""
     # Simple test that doesn't require actual websocket connections
     # but tests the async functionality
 
     async def mock_websocket_handler(data):
-        """Mock websocket handler that returns None for empty data. """
+        """Mock websocket handler that returns None for empty data."""
         if data is None:
             return None
         return {"processed": data}

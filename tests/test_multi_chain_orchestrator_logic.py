@@ -1,4 +1,4 @@
-"""Logic-focused tests for MultiChainOrchestrator without network side effects. """
+"""Logic-focused tests for MultiChainOrchestrator without network side effects."""
 
 import asyncio
 from decimal import Decimal

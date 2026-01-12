@@ -1,4 +1,4 @@
-"""Behavior-first tests for MarketDataFeed without touching real networks. """
+"""Behavior-first tests for MarketDataFeed without touching real networks."""
 
 import asyncio
 from datetime import datetime, timedelta

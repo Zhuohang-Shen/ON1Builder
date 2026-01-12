@@ -88,7 +88,10 @@ class ChainWorker:
 
             self.account = Account.from_key(wallet_key)
 
-            if wallet_address and self.account.address.lower() != wallet_address.lower():
+            if (
+                wallet_address
+                and self.account.address.lower() != wallet_address.lower()
+            ):
                 raise InitializationError(
                     "WALLET_KEY does not correspond to WALLET_ADDRESS.",
                     component="ChainWorker",
@@ -137,24 +140,20 @@ class ChainWorker:
                 self._cleanup_worker_caches
             )
 
-            logger.info(
-                f"[Chain {self.chain_id}] ChainWorker initialized!"
-            )
+            logger.info(f"[Chain {self.chain_id}] ChainWorker initialized!")
             logger.debug(
                 f"[Chain {self.chain_id}] Balance tier: {balance_summary['balance_tier']}, "
                 f"Max investment: {balance_summary['max_investment']:.6f} ETH"
             )
 
         except Exception as e:
-            logger.critical(
-                f"[Chain {self.chain_id}] Node offline or syncing"
-            )
+            logger.critical(f"[Chain {self.chain_id}] Node offline or syncing")
             raise InitializationError(
                 f"ChainWorker {self.chain_id} Execution Client initialization failed"
             ) from e
 
     async def start(self):
-        """ startup with performance tracking and monitoring. """
+        """startup with performance tracking and monitoring."""
         if self.is_running:
             logger.warning(f"[Chain {self.chain_id}] Worker is already running.")
             return
@@ -188,7 +187,7 @@ class ChainWorker:
         await asyncio.gather(*self._tasks, return_exceptions=True)
 
     async def stop(self):
-        """ stop with comprehensive cleanup and final reporting. """
+        """stop with comprehensive cleanup and final reporting."""
         if not self.is_running:
             return
 
@@ -217,7 +216,7 @@ class ChainWorker:
         logger.info(f"Closing ChainWorker...")
 
     def _cleanup_worker_caches(self) -> None:
-        """Memory cleanup callback for worker-specific caches. """
+        """Memory cleanup callback for worker-specific caches."""
         try:
             cleanup_count = 0
 
@@ -246,7 +245,7 @@ class ChainWorker:
             logger.error(f"[Chain {self.chain_id}] Error in worker cache cleanup: {e}")
 
     async def _ON1Builder_heartbeat(self):
-        """ heartbeat with comprehensive status reporting. """
+        """heartbeat with comprehensive status reporting."""
         while self.is_running:
             try:
                 # Update performance stats
@@ -291,7 +290,7 @@ class ChainWorker:
                 await asyncio.sleep(settings.heartbeat_interval)
 
     async def _balance_monitoring_loop(self):
-        """Dedicated balance monitoring and tier adjustment loop. """
+        """Dedicated balance monitoring and tier adjustment loop."""
         while self.is_running:
             try:
                 # Update balance and check for tier changes
@@ -327,7 +326,7 @@ class ChainWorker:
                 await asyncio.sleep(30)
 
     async def _performance_reporting_loop(self):
-        """Periodic performance reporting and optimization. """
+        """Periodic performance reporting and optimization."""
         while self.is_running:
             try:
                 # Generate performance report every 10 minutes
@@ -376,7 +375,7 @@ class ChainWorker:
                 )
 
     async def _generate_final_report(self):
-        """Generate final performance report on shutdown. """
+        """Generate final performance report on shutdown."""
         try:
             # Get final stats
             balance_summary = await self.balance_manager.get_balance_summary()
@@ -415,7 +414,7 @@ class ChainWorker:
             )
 
     async def get_status(self) -> Dict[str, Any]:
-        """Get comprehensive worker status. """
+        """Get comprehensive worker status."""
         if not self.is_running:
             return {"status": "stopped", "chain_id": self.chain_id}
 

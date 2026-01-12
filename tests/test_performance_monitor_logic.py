@@ -1,4 +1,4 @@
-"""Behavioral tests for performance monitoring logic (no system dependency). """
+"""Behavioral tests for performance monitoring logic (no system dependency)."""
 
 from datetime import datetime, timedelta
 from decimal import Decimal

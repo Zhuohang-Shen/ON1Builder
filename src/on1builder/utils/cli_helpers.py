@@ -94,22 +94,22 @@ def handle_cli_errors(
 
 
 def success_message(message: str) -> None:
-    """Display a success message with consistent formatting. """
+    """Display a success message with consistent formatting."""
     console.print(f"[bold green]✅ {message}[/]")
 
 
 def info_message(message: str) -> None:
-    """Display an info message with consistent formatting. """
+    """Display an info message with consistent formatting."""
     console.print(f"[blue]ℹ️ {message}[/]")
 
 
 def warning_message(message: str) -> None:
-    """Display a warning message with consistent formatting. """
+    """Display a warning message with consistent formatting."""
     console.print(f"[yellow]⚠️ {message}[/]")
 
 
 def error_message(message: str) -> None:
-    """Display an error message with consistent formatting. """
+    """Display an error message with consistent formatting."""
     console.print(f"[bold red]❌ {message}[/]")
 
 
@@ -128,7 +128,7 @@ def confirm_action(message: str, default: bool = False) -> bool:
 
 
 def resolve_editor_command(editor: str | None) -> list[str]:
-    """Resolve an editor command from CLI input or environment defaults. """
+    """Resolve an editor command from CLI input or environment defaults."""
     if editor:
         command = editor
     else:

@@ -25,6 +25,7 @@ _loggers: Dict[str, logging.Logger] = {}
 _logging_initialized = False
 dotenv.load_dotenv()
 
+
 def _configure_io_encoding() -> None:
     """
     Ensure stdout/stderr use UTF-8 so rich/logging can safely emit non-ASCII
@@ -42,7 +43,7 @@ def _configure_io_encoding() -> None:
 
 
 class JsonFormatter(logging.Formatter):
-    """Formats log records as JSON strings for structured logging. """
+    """Formats log records as JSON strings for structured logging."""
 
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
@@ -76,6 +77,7 @@ def setup_logging(force_setup: bool = False) -> None:
     # Import settings lazily to avoid circular imports
     try:
         from on1builder.config.loaders import get_settings
+
         settings = get_settings()
         log_level = os.getenv("LOG_LEVEL")
         if getattr(settings, "debug", False):
@@ -108,11 +110,11 @@ def setup_logging(force_setup: bool = False) -> None:
         formatter = colorlog.ColoredFormatter(
             "%(log_color)s[%(levelname)s]%(reset)s %(message)s",
             log_colors={
-            "DEBUG": "cyan",
-            "INFO": "green",
-            "WARNING": "yellow",
-            "ERROR": "red",
-            "CRITICAL": "red,bg_white",
+                "DEBUG": "cyan",
+                "INFO": "green",
+                "WARNING": "yellow",
+                "ERROR": "red",
+                "CRITICAL": "red,bg_white",
             },
         )
     else:
@@ -183,7 +185,7 @@ def get_logger(name: str) -> logging.Logger:
 
 
 def reset_logging() -> None:
-    """Reset logging configuration. Mainly used for testing. """
+    """Reset logging configuration. Mainly used for testing."""
     global _loggers
     _loggers.clear()
 

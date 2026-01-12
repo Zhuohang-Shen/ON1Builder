@@ -1,6 +1,7 @@
 """
 Common utilities for ON1Builder.
 """
+
 #!/usr/bin/env python3
 # MIT License
 # Copyright (c) 2026 John Hauger Mitander

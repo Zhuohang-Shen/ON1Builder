@@ -95,7 +95,7 @@ class StrategyExecutor:
         return sum(values) / len(values) if values else 0.0
 
     def _load_weights(self):
-        """ weight loading with validation and migration. """
+        """weight loading with validation and migration."""
         try:
             if self._strategy_weights_path.exists():
                 with open(self._strategy_weights_path, "r") as f:
@@ -131,7 +131,7 @@ class StrategyExecutor:
                 self._weights[strategy_name] = [1.0 for _ in range(num_functions)]
 
     def _save_weights(self):
-        """ weight saving with metadata. """
+        """weight saving with metadata."""
         data = {
             "version": "2.0",
             "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -161,7 +161,7 @@ class StrategyExecutor:
             logger.error(f"Failed to save strategy weights: {e}")
 
     def _initialize_performance_tracking(self):
-        """Initialize performance tracking for all strategies. """
+        """Initialize performance tracking for all strategies."""
         for strategy_name in self._strategies:
             self._strategy_performance[strategy_name] = {
                 "success_rate": 0.0,
@@ -366,13 +366,19 @@ class StrategyExecutor:
             }
 
         # Ensure simulation unless globally bypassed
-        if not opportunity.get("simulated", False) and not settings.allow_unsimulated_trades:
+        if (
+            not opportunity.get("simulated", False)
+            and not settings.allow_unsimulated_trades
+        ):
             simulated = await self.simulate_opportunity(opportunity)
             if not simulated:
                 return {"success": False, "reason": "Simulation failed"}
 
         # Enforce simulation gate consistently
-        if not opportunity.get("simulated", False) and not settings.allow_unsimulated_trades:
+        if (
+            not opportunity.get("simulated", False)
+            and not settings.allow_unsimulated_trades
+        ):
             return {"success": False, "reason": "Opportunity not simulated"}
 
         strategy_func, strategy_name = await self._select_strategy(opportunity)
@@ -464,7 +470,7 @@ class StrategyExecutor:
     def _update_strategy_performance(
         self, strategy_name: str, success: bool, profit: float, gas_used: int
     ):
-        """Updates detailed performance metrics for a strategy. """
+        """Updates detailed performance metrics for a strategy."""
         perf = self._strategy_performance[strategy_name]
 
         total_executions = perf["total_executions"]
@@ -498,7 +504,7 @@ class StrategyExecutor:
         profit: float,
         opportunity: Dict[str, Any],
     ):
-        """ ML weight update with contextual learning. """
+        """ML weight update with contextual learning."""
         if strategy_name not in self._weights:
             return
 
@@ -545,7 +551,7 @@ class StrategyExecutor:
             current_weights[i] = max(current_weights[i], 0.1)
 
     async def _update_ml_parameters(self):
-        """Updates ML parameters based on recent performance. """
+        """Updates ML parameters based on recent performance."""
         # Decay exploration rate over time
         self._exploration_rate *= self._decay_rate
         self._exploration_rate = max(
@@ -569,7 +575,7 @@ class StrategyExecutor:
         )
 
     def _calculate_recent_performance(self) -> float:
-        """Calculates recent overall performance across all strategies. """
+        """Calculates recent overall performance across all strategies."""
         total_success = 0
         total_executions = 0
 
@@ -580,7 +586,7 @@ class StrategyExecutor:
         return total_success / total_executions if total_executions > 0 else 0.5
 
     async def get_strategy_report(self) -> Dict[str, Any]:
-        """Returns comprehensive strategy performance report. """
+        """Returns comprehensive strategy performance report."""
         return {
             "execution_count": self._execution_count,
             "ml_parameters": {

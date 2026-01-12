@@ -37,9 +37,8 @@ def _load_env_values(paths: Iterable[Path]) -> Dict[str, str]:
                 continue
             key, _, raw_value = stripped.partition("=")
             value = raw_value.strip()
-            if (
-                (value.startswith('"') and value.endswith('"'))
-                or (value.startswith("'") and value.endswith("'"))
+            if (value.startswith('"') and value.endswith('"')) or (
+                value.startswith("'") and value.endswith("'")
             ):
                 value = value[1:-1]
             values[key.strip()] = value
@@ -69,9 +68,8 @@ def _apply_updates(lines: List[str], updates: Dict[str, str]) -> str:
             rendered.append(line)
             continue
         stripped = raw_value.strip()
-        quoted = (
-            (stripped.startswith('"') and stripped.endswith('"'))
-            or (stripped.startswith("'") and stripped.endswith("'"))
+        quoted = (stripped.startswith('"') and stripped.endswith('"')) or (
+            stripped.startswith("'") and stripped.endswith("'")
         )
         rendered.append(f"{key}={_format_env_value(updates[key], quoted)}")
         updated_keys.add(key)
@@ -287,9 +285,7 @@ def run_setup_wizard() -> None:
 
         use_wallet_profit = _ask_confirm(
             "Use wallet address as profit receiver?",
-            default=_bool_from_env(
-                defaults.get("USE_WALLET_AS_PROFIT_RECEIVER"), True
-            ),
+            default=_bool_from_env(defaults.get("USE_WALLET_AS_PROFIT_RECEIVER"), True),
         )
         if use_wallet_profit:
             updates["PROFIT_RECEIVER_ADDRESS"] = wallet_address
@@ -312,9 +308,7 @@ def run_setup_wizard() -> None:
         poa_input = _ask_optional(
             "PoA chains (comma-separated IDs, optional)",
             default=poa_default,
-            validate=lambda v: _validate_chain_ids(v)
-            if v.strip()
-            else True,
+            validate=lambda v: _validate_chain_ids(v) if v.strip() else True,
         )
         updates["POA_CHAINS"] = poa_input
 
@@ -512,9 +506,7 @@ def run_setup_wizard() -> None:
             updates["DYNAMIC_GAS_PRICING"] = _bool_to_env(
                 _ask_confirm(
                     "Enable dynamic gas pricing?",
-                    default=_bool_from_env(
-                        defaults.get("DYNAMIC_GAS_PRICING"), True
-                    ),
+                    default=_bool_from_env(defaults.get("DYNAMIC_GAS_PRICING"), True),
                 )
             )
             updates["GAS_PRICE_PERCENTILE"] = _ask_optional(
@@ -538,7 +530,9 @@ def run_setup_wizard() -> None:
                 validate=_validate_float,
             )
 
-        if _ask_confirm("Configure profit, balance, and risk thresholds?", default=False):
+        if _ask_confirm(
+            "Configure profit, balance, and risk thresholds?", default=False
+        ):
             updates["MIN_WALLET_BALANCE"] = _ask_optional(
                 "Min wallet balance (ETH)",
                 default=defaults.get("MIN_WALLET_BALANCE", "0.05"),
@@ -677,9 +671,7 @@ def run_setup_wizard() -> None:
 
         summary = _redact_summary(dict(updates))
         console.print("\n[bold]Proposed configuration[/]")
-        console.print(
-            Syntax(json.dumps(summary, indent=2), "json", theme="monokai")
-        )
+        console.print(Syntax(json.dumps(summary, indent=2), "json", theme="monokai"))
 
         if _ask_confirm("Change any values before writing?", default=False):
             continue

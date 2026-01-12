@@ -1,4 +1,4 @@
-"""Comprehensive tests for logging_config module. """
+"""Comprehensive tests for logging_config module."""
 
 import pytest
 import logging
@@ -15,10 +15,10 @@ from on1builder.utils.logging_config import (
 
 
 class TestJsonFormatter:
-    """Test JsonFormatter class. """
+    """Test JsonFormatter class."""
 
     def test_basic_formatting(self):
-        """Test basic JSON formatting. """
+        """Test basic JSON formatting."""
         formatter = JsonFormatter()
         record = logging.LogRecord(
             name="test",
@@ -42,7 +42,7 @@ class TestJsonFormatter:
         assert "timestamp" in parsed
 
     def test_formatting_with_exception(self):
-        """Test JSON formatting with exception. """
+        """Test JSON formatting with exception."""
         formatter = JsonFormatter()
 
         try:
@@ -72,7 +72,7 @@ class TestJsonFormatter:
         assert "ValueError" in parsed["exception"]
 
     def test_formatting_with_extra_data(self):
-        """Test JSON formatting with extra data. """
+        """Test JSON formatting with extra data."""
         formatter = JsonFormatter()
         record = logging.LogRecord(
             name="test",
@@ -98,14 +98,14 @@ class TestJsonFormatter:
 
 
 class TestSetupLogging:
-    """Test setup_logging function. """
+    """Test setup_logging function."""
 
     def teardown_method(self):
-        """Clean up after each test. """
+        """Clean up after each test."""
         reset_logging()
 
     def test_setup_logging_default(self):
-        """Test default logging setup. """
+        """Test default logging setup."""
         with patch.dict(os.environ, {}, clear=True):
             setup_logging()
 
@@ -114,7 +114,7 @@ class TestSetupLogging:
         assert len(logger.handlers) > 0
 
     def test_setup_logging_debug_mode(self):
-        """Test logging setup with debug mode. """
+        """Test logging setup with debug mode."""
         with patch("on1builder.config.loaders.get_settings") as mock_settings:
             mock_settings.return_value = Mock(debug=True)
 
@@ -124,7 +124,7 @@ class TestSetupLogging:
             assert logger.level == logging.DEBUG
 
     def test_setup_logging_json_format(self):
-        """Test logging setup with JSON format. """
+        """Test logging setup with JSON format."""
         with patch.dict(os.environ, {"LOG_FORMAT": "json"}):
             setup_logging(force_setup=True)
 
@@ -134,7 +134,7 @@ class TestSetupLogging:
             assert isinstance(handler.formatter, JsonFormatter)
 
     def test_setup_logging_colorlog(self):
-        """Test logging setup with colorlog if available. """
+        """Test logging setup with colorlog if available."""
         if not HAVE_COLORLOG:
             pytest.skip("colorlog not available")
 
@@ -150,7 +150,7 @@ class TestSetupLogging:
             assert isinstance(handler.formatter, colorlog.ColoredFormatter)
 
     def test_setup_logging_without_colorlog(self):
-        """Test logging setup falls back when colorlog unavailable. """
+        """Test logging setup falls back when colorlog unavailable."""
         with patch("on1builder.utils.logging_config.HAVE_COLORLOG", False):
             with patch.dict(os.environ, {"LOG_FORMAT": "console"}):
                 setup_logging(force_setup=True)
@@ -161,7 +161,7 @@ class TestSetupLogging:
                 assert isinstance(handler.formatter, logging.Formatter)
 
     def test_setup_logging_custom_level(self):
-        """Test logging setup with custom level from environment. """
+        """Test logging setup with custom level from environment."""
         with patch.dict(os.environ, {"LOG_LEVEL": "WARNING"}):
             with patch("on1builder.config.loaders.get_settings", side_effect=Exception):
                 setup_logging(force_setup=True)
@@ -170,12 +170,12 @@ class TestSetupLogging:
                 assert logger.level == logging.WARNING
 
     def test_setup_logging_file_handler_created(self):
-        """Test file handler is created. """
+        """Test file handler is created."""
         # Skip in test environment
         pytest.skip("File handler creation tested separately")
 
     def test_setup_logging_file_handler_error(self):
-        """Test logging continues if file handler fails. """
+        """Test logging continues if file handler fails."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("PYTEST_CURRENT_TEST", None)
 
@@ -189,7 +189,7 @@ class TestSetupLogging:
                 assert len(logger.handlers) > 0
 
     def test_setup_logging_clears_existing_handlers(self):
-        """Test setup_logging clears existing handlers. """
+        """Test setup_logging clears existing handlers."""
         logger = logging.getLogger("on1builder")
 
         # Add a dummy handler
@@ -205,7 +205,7 @@ class TestSetupLogging:
         assert len(logger.handlers) > 0
 
     def test_setup_logging_idempotent(self):
-        """Test setup_logging is idempotent without force_setup. """
+        """Test setup_logging is idempotent without force_setup."""
         setup_logging()
 
         logger = logging.getLogger("on1builder")
@@ -218,7 +218,7 @@ class TestSetupLogging:
         assert len(logger.handlers) == handler_count
 
     def test_setup_logging_force_setup(self):
-        """Test force_setup reconfigures logging. """
+        """Test force_setup reconfigures logging."""
         setup_logging()
 
         logger = logging.getLogger("on1builder")
@@ -234,21 +234,21 @@ class TestSetupLogging:
 
 
 class TestGetLogger:
-    """Test get_logger function. """
+    """Test get_logger function."""
 
     def teardown_method(self):
-        """Clean up after each test. """
+        """Clean up after each test."""
         reset_logging()
 
     def test_get_logger_returns_child_logger(self):
-        """Test get_logger returns a child logger. """
+        """Test get_logger returns a child logger."""
         logger = get_logger("test_module")
 
         assert logger.name == "on1builder.test_module"
         assert isinstance(logger, logging.Logger)
 
     def test_get_logger_initializes_logging(self):
-        """Test get_logger initializes logging if not setup. """
+        """Test get_logger initializes logging if not setup."""
         reset_logging()
 
         logger = get_logger("test")
@@ -258,7 +258,7 @@ class TestGetLogger:
         assert len(root_logger.handlers) > 0
 
     def test_get_logger_multiple_calls(self):
-        """Test multiple get_logger calls return proper loggers. """
+        """Test multiple get_logger calls return proper loggers."""
         logger1 = get_logger("module1")
         logger2 = get_logger("module2")
 
@@ -267,17 +267,17 @@ class TestGetLogger:
         assert logger1 is not logger2
 
     def test_get_logger_with_dotted_name(self):
-        """Test get_logger with dotted module name. """
+        """Test get_logger with dotted module name."""
         logger = get_logger("utils.helpers")
 
         assert logger.name == "on1builder.utils.helpers"
 
 
 class TestResetLogging:
-    """Test reset_logging function. """
+    """Test reset_logging function."""
 
     def test_reset_logging_clears_loggers(self):
-        """Test reset_logging clears logger cache. """
+        """Test reset_logging clears logger cache."""
         from on1builder.utils import logging_config
 
         setup_logging()
@@ -287,7 +287,7 @@ class TestResetLogging:
         assert len(logging_config._loggers) == 0
 
     def test_reset_logging_removes_handlers(self):
-        """Test reset_logging removes handlers from root logger. """
+        """Test reset_logging removes handlers from root logger."""
         setup_logging()
 
         logger = logging.getLogger("on1builder")
@@ -299,14 +299,14 @@ class TestResetLogging:
 
 
 class TestLoggingIntegration:
-    """Test logging integration scenarios. """
+    """Test logging integration scenarios."""
 
     def teardown_method(self):
-        """Clean up after each test. """
+        """Clean up after each test."""
         reset_logging()
 
     def test_logger_hierarchy(self):
-        """Test logger hierarchy works correctly. """
+        """Test logger hierarchy works correctly."""
         parent = get_logger("parent")
         child = get_logger("parent.child")
 
@@ -314,7 +314,7 @@ class TestLoggingIntegration:
         assert child.parent.name == parent.name
 
     def test_logger_output(self, caplog):
-        """Test logger actually logs messages. """
+        """Test logger actually logs messages."""
         with caplog.at_level(logging.INFO):
             logger = get_logger("test")
             logger.info("Test message")
@@ -322,7 +322,7 @@ class TestLoggingIntegration:
         assert "Test message" in caplog.text
 
     def test_different_log_levels(self, caplog):
-        """Test different log levels work correctly. """
+        """Test different log levels work correctly."""
         # Set up logger with DEBUG level
         with patch.dict(os.environ, {"LOG_LEVEL": "DEBUG"}):
             with patch("on1builder.config.loaders.get_settings", side_effect=Exception):

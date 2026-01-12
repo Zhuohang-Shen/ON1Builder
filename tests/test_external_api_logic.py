@@ -1,4 +1,4 @@
-"""Focused logic tests for ExternalAPIManager without hitting real networks. """
+"""Focused logic tests for ExternalAPIManager without hitting real networks."""
 
 import asyncio
 import time
@@ -13,7 +13,7 @@ from on1builder.integrations.external_apis import ExternalAPIManager, RateLimitT
 
 
 def reset_manager_state(manager: ExternalAPIManager):
-    """Ensure singleton state is clean for each test. """
+    """Ensure singleton state is clean for each test."""
     manager._initialized = True  # skip real initialization
     manager._providers = {}
     manager._session = None

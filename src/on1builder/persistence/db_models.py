@@ -22,13 +22,14 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
+
 def utcnow() -> datetime.datetime:
     """Timezone-aware UTC timestamp for SQLAlchemy defaults."""
     return datetime.datetime.now(datetime.timezone.utc)
 
 
 class Transaction(Base):
-    """ SQLAlchemy model for storing transaction records with comprehensive tracking. """
+    """SQLAlchemy model for storing transaction records with comprehensive tracking."""
 
     __tablename__ = "transactions"
 
@@ -62,7 +63,7 @@ class Transaction(Base):
             setattr(self, key, value)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Converts the model instance to a dictionary. """
+        """Converts the model instance to a dictionary."""
         return {
             "id": self.id,
             "tx_hash": self.tx_hash,
@@ -85,7 +86,7 @@ class Transaction(Base):
 
 
 class ProfitRecord(Base):
-    """ SQLAlchemy model for tracking profits with comprehensive metrics. """
+    """SQLAlchemy model for tracking profits with comprehensive metrics."""
 
     __tablename__ = "profit_records"
 
@@ -117,7 +118,7 @@ class ProfitRecord(Base):
             setattr(self, key, value)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Converts the model instance to a dictionary. """
+        """Converts the model instance to a dictionary."""
         return {
             "id": self.id,
             "tx_hash": self.tx_hash,
@@ -141,7 +142,7 @@ class ProfitRecord(Base):
 
 
 class StrategyPerformance(Base):
-    """Model for tracking strategy performance metrics over time. """
+    """Model for tracking strategy performance metrics over time."""
 
     __tablename__ = "strategy_performance"
 
@@ -172,7 +173,7 @@ class StrategyPerformance(Base):
     window_end = Column(DateTime, nullable=True)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Converts the model instance to a dictionary. """
+        """Converts the model instance to a dictionary."""
         return {
             "id": self.id,
             "strategy": self.strategy,
@@ -197,7 +198,7 @@ class StrategyPerformance(Base):
 
 
 class MarketCondition(Base):
-    """Model for tracking market conditions and their impact on strategy performance. """
+    """Model for tracking market conditions and their impact on strategy performance."""
 
     __tablename__ = "market_conditions"
 
@@ -224,7 +225,7 @@ class MarketCondition(Base):
     avg_success_rate = Column(Float, nullable=True)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Converts the model instance to a dictionary. """
+        """Converts the model instance to a dictionary."""
         return {
             "id": self.id,
             "chain_id": self.chain_id,
