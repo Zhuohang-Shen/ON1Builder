@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from decimal import Decimal
 from pathlib import Path
@@ -306,7 +307,8 @@ class ConfigValidator:
             # Windows-specific guard: POSIX-style absolute paths without a drive
             # (e.g. "/invalid/path") are typically unintended and should be rejected early.
             if (
-                (path.is_absolute() or str(path).startswith(("/", "\\")))
+                os.name == "nt"
+                and (path.is_absolute() or str(path).startswith(("/", "\\")))
                 and path.drive == ""
                 and path.anchor in ("/", "\\")
             ):
@@ -357,7 +359,7 @@ class ConfigValidator:
             ValidationError: If any validation fails
             ConfigurationError: If configuration is invalid
         """
-        logger.info("Performing complete configuration validation")
+        logger.debug("Performing complete configuration validation")
 
         try:
             # Validate wallet settings
@@ -428,9 +430,9 @@ class ConfigValidator:
 
             # Validate submission mode and simulation backend
             if "submission_mode" in config_dict:
-                if config_dict["submission_mode"] not in ("public", "private"):
+                if config_dict["submission_mode"] not in ("public", "private", "bundle"):
                     raise ValidationError(
-                        "submission_mode must be 'public' or 'private'",
+                        "submission_mode must be 'public', 'private', or 'bundle'",
                         field="submission_mode",
                         value=config_dict["submission_mode"],
                     )
@@ -447,6 +449,29 @@ class ConfigValidator:
                         "private_rpc_url is required when submission_mode is 'private'",
                         field="private_rpc_url",
                     )
+            if "submission_mode" in config_dict and config_dict["submission_mode"] == "bundle":
+                missing = [k for k in ("bundle_relay_url", "bundle_relay_auth_token") if not config_dict.get(k)]
+                if missing:
+                    raise ValidationError(
+                        f"bundle submission requires: {missing}",
+                        field="bundle_submission",
+                    )
+                if config_dict.get("bundle_target_block_offset", 0) <= 0:
+                    raise ValidationError(
+                        "bundle_target_block_offset must be > 0",
+                        field="bundle_target_block_offset",
+                        value=config_dict.get("bundle_target_block_offset"),
+                    )
+                if config_dict.get("bundle_timeout_seconds", 0) <= 0:
+                    raise ValidationError(
+                        "bundle_timeout_seconds must be > 0",
+                        field="bundle_timeout_seconds",
+                        value=config_dict.get("bundle_timeout_seconds"),
+                    )
+            if config_dict.get("bundle_signer_key"):
+                config_dict["bundle_signer_key"] = cls.validate_private_key(
+                    config_dict["bundle_signer_key"]
+                )
             if "simulation_backend" in config_dict and config_dict["simulation_backend"] == "tenderly":
                 missing = [
                     key
@@ -458,6 +483,15 @@ class ConfigValidator:
                         f"Tenderly simulation requires: {missing}",
                         field="tenderly_credentials",
                     )
+            if (
+                "simulation_concurrency" in config_dict
+                and config_dict["simulation_concurrency"] <= 0
+            ):
+                raise ValidationError(
+                    "simulation_concurrency must be > 0",
+                    field="simulation_concurrency",
+                    value=config_dict.get("simulation_concurrency"),
+                )
 
             # Validate ML settings
             if all(
@@ -470,7 +504,7 @@ class ConfigValidator:
                     config_dict["ml_decay_rate"],
                 )
 
-            logger.info("Configuration validation completed successfully")
+            logger.debug("Configuration validation completed successfully")
             return config_dict
 
         except (ValidationError, ConfigurationError) as e:

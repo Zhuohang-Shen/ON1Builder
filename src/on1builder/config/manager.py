@@ -56,7 +56,7 @@ class ConfigurationManager:
                     details={"searched_path": str(self._config_file_path)},
                 )
 
-            logger.info(f"Loading configuration from: {self._config_file_path}")
+            logger.debug(f"Loading configuration from: {self._config_file_path}")
 
             # Load and validate configuration
             self._config = load_settings(env_path=self._config_file_path)
@@ -68,7 +68,7 @@ class ConfigurationManager:
             # Log configuration summary (without sensitive data)
             self._log_configuration_summary()
 
-            logger.info("Configuration loaded and validated successfully")
+            logger.debug("Configuration loaded and validated successfully")
 
         except Exception as e:
             logger.error(f"Failed to initialize configuration: {e}")
@@ -147,6 +147,7 @@ class ConfigurationManager:
         """Validate chain-specific configurations. """
         chains = config.get("chains", [])
         rpc_urls = config.get("rpc_urls", {})
+        websocket_urls = config.get("websocket_urls", {})
 
         normalized_rpc_urls = {}
         for key, value in rpc_urls.items():
@@ -165,6 +166,16 @@ class ConfigurationManager:
                 f"Missing RPC URLs for chains: {missing_rpcs}"
             )
             logger.warning(f"Missing RPC URLs for chains: {missing_rpcs}")
+
+        # Warn if websocket URLs are missing for chains (txpool scanning will not run)
+        missing_ws = []
+        for chain_id in chains:
+            if not websocket_urls.get(chain_id) and not websocket_urls.get(str(chain_id)):
+                missing_ws.append(chain_id)
+        if missing_ws:
+            logger.warning(
+                f"Missing WebSocket URLs for chains (txpool scanning disabled): {missing_ws}"
+            )
 
     def _validate_api_configurations(self, config: Dict[str, Any]) -> None:
         """Validate API configurations. """
@@ -208,7 +219,7 @@ class ConfigurationManager:
             ),
         }
 
-        logger.info(f"Configuration summary: {summary}")
+        logger.debug(f"Configuration summary: {summary}")
 
     def get_config(self):
         """Get the current configuration. """

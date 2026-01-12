@@ -57,21 +57,8 @@ class SafetyGuard:
         self._balance_manager = balance_manager
         self._notification_service = notification_service or NotificationService()
         self._settings = settings
-        self._chain_id = (
-            chain_id if chain_id is not None else getattr(web3.eth, "chain_id", None)
-        )
-
-        # Validate provider chain_id if available
-        try:
-            provider_chain = getattr(web3.eth, "chain_id", None)
-            if provider_chain is not None and chain_id is not None:
-                if int(provider_chain) != int(chain_id):
-                    logger.warning(
-                        f"SafetyGuard chain_id mismatch: provider {provider_chain} vs configured {chain_id}"
-                    )
-        except Exception:
-            # Best-effort only; do not block initialization
-            pass
+        # chain_id should be provided by the caller; avoid touching async properties here.
+        self._chain_id = chain_id
 
         # Transaction tracking with efficient storage
         self._recent_tx_signatures = set()
@@ -106,7 +93,7 @@ class SafetyGuard:
             },
         }
 
-        logger.info("ON1Builder SafetyGuard initialized with advanced risk management.")
+        logger.debug("SafetyGuard initialized with advanced risk management.")
 
     @property
     def is_circuit_broken(self) -> bool:

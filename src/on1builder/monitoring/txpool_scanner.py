@@ -49,16 +49,6 @@ class TxPoolScanner:
         self._is_running = False
         self._scan_task: Optional[asyncio.Task] = None
 
-        try:
-            provider_chain = getattr(web3.eth, "chain_id", None)
-            if provider_chain is not None and int(provider_chain) != int(chain_id):
-                logger.warning(
-                    f"TxPoolScanner chain_id mismatch: provider {provider_chain} vs configured {chain_id}"
-                )
-        except Exception:
-            # best effort only
-            pass
-
         # Build chain-specific DEX router mapping
         self._dex_routers = self._build_dex_router_mapping()
         # Initialize cached data
@@ -75,8 +65,9 @@ class TxPoolScanner:
         self._opportunity_cache: Dict[str, Dict] = {}
         self._cache_access_times: Dict[str, datetime] = {}
 
-        logger.info(
-            f"ON1Builder TxPoolScanner initialized. Monitoring {len(self._monitored_addresses)} addresses."
+        logger.debug(
+            "ON1Builder TxPoolScanner initialized. Monitoring %s addresses.",
+            len(self._monitored_addresses),
         )
 
     def _build_dex_router_mapping(self) -> Dict[str, str]:
@@ -104,8 +95,10 @@ class TxPoolScanner:
                 )
                 continue
 
-        logger.info(
-            f"Built DEX router mapping for chain {self._chain_id}: {len(dex_routers)} routers"
+        logger.debug(
+            "Built DEX router mapping for chain %s: %s routers",
+            self._chain_id,
+            len(dex_routers),
         )
         return dex_routers
 
@@ -152,7 +145,7 @@ class TxPoolScanner:
 
         self._is_running = True
         logger.info(
-            "Starting ON1Builder TxPoolScanner to monitor pending transactions..."
+            "Scanning transaction pool for MEV opportunities on chain %s...", self._chain_id
         )
         self._scan_task = asyncio.create_task(self._subscribe_to_pending_transactions())
 
@@ -174,14 +167,15 @@ class TxPoolScanner:
         Establishes a WebSocket subscription to new pending transactions and
         processes them in a continuous loop with ON1Builder analysis.
         """
+        if not self._is_running:
+            self._is_running = True
+
         chain_id = await self._web3.eth.chain_id
+        ws_urls = getattr(settings, "websocket_urls", {})
+        rpc_urls = getattr(settings, "rpc_urls", {})
         # settings may store URLs keyed by either int or string chain ids; try both
-        ws_url = settings.websocket_urls.get(chain_id) or settings.websocket_urls.get(
-            str(chain_id)
-        )
-        rpc_url = settings.rpc_urls.get(chain_id) or settings.rpc_urls.get(
-            str(chain_id)
-        )
+        ws_url = ws_urls.get(chain_id) or ws_urls.get(str(chain_id))
+        rpc_url = rpc_urls.get(chain_id) or rpc_urls.get(str(chain_id))
 
         if not ws_url:
             logger.error(
@@ -192,86 +186,66 @@ class TxPoolScanner:
 
         # Public endpoints often do not support pending tx subscriptions reliably; disable to avoid noise
         if "public" in ws_url.lower() or (rpc_url and "public" in rpc_url.lower()):
-            logger.warning(
+            logger.debug(
                 f"[Chain {chain_id}] Public RPC/WebSocket detected ({ws_url}). "
                 "Skipping txpool scanner to avoid unstable subscriptions."
             )
             self._is_running = False
             return
 
+        backoff_delay = settings.connection_retry_delay
         while self._is_running:
+            ws_provider = None
+            ws_web3 = None
+            subscription_id = None
             try:
-                # Create a WebSocket provider for this chain
+                # Create a WebSocket provider for this chain (persistent connection)
+                from web3 import AsyncWeb3
                 from web3.providers import WebSocketProvider
 
                 ws_provider = WebSocketProvider(ws_url)
+                ws_web3 = AsyncWeb3(ws_provider)
+                await ws_provider.connect()
 
-                # Connect to the WebSocket provider and handle both coroutine and context manager cases
-                connection = ws_provider.connect()
-                if hasattr(connection, "__aenter__"):
-                    # It's an async context manager
-                    async with connection as websocket:
-                        await self._handle_websocket_subscription(websocket)
-                else:
-                    # It's a coroutine, await it first
-                    websocket = await connection
-                    if websocket is None:
-                        logger.error("WebSocket connection returned None")
-                        continue
-                    try:
-                        await self._handle_websocket_subscription(websocket)
-                    finally:
-                        if hasattr(websocket, "close"):
-                            await websocket.close()
+                async def _handle_pending(context):
+                    tx_hash = context.result
+                    if tx_hash:
+                        self._pending_tx_count += 1
+                        asyncio.create_task(self._process_tx_hash(tx_hash))
+
+                subscription_id = await ws_web3.eth.subscribe(
+                    "newPendingTransactions", handler=_handle_pending
+                )
+                logger.info(
+                    "Successfully subscribed to pending transactions (subscription: %s)",
+                    subscription_id,
+                )
+
+                # Run the subscription handler loop until cancelled
+                await ws_web3.subscription_manager.handle_subscriptions(
+                    run_forever=True
+                )
+                backoff_delay = settings.connection_retry_delay
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(
-                    f"TxPoolScanner subscription error: {e}. Reconnecting in {settings.connection_retry_delay}s.",
+                    f"TxPoolScanner subscription error: {e}. Reconnecting in {backoff_delay}s.",
                     exc_info=True,
                 )
-                await asyncio.sleep(settings.connection_retry_delay)
-
-    async def _handle_websocket_subscription(self, websocket):
-        """Handle WebSocket subscription and message processing. """
-        if websocket is None:
-            logger.error(
-                "WebSocket connection is None, cannot subscribe to pending transactions"
-            )
-            return
-
-        try:
-            # Subscribe to new pending transactions
-            subscription_id = await websocket.subscribe("newPendingTransactions")
-            logger.info(
-                f"Successfully subscribed to pending transactions (subscription: {subscription_id})"
-            )
-        except Exception as e:
-            logger.error(f"Failed to subscribe to pending transactions: {e}")
-            return
-
-        while self._is_running:
-            try:
-                message = await asyncio.wait_for(
-                    websocket.recv(), timeout=settings.heartbeat_interval * 2
-                )
-
-                # Extract transaction hash from the message
-                if hasattr(message, "result"):
-                    tx_hash = message.result
-                elif isinstance(message, dict) and "result" in message:
-                    tx_hash = message["result"]
-                else:
-                    logger.debug(f"Unexpected message format: {message}")
-                    continue
-
-                if tx_hash:
-                    self._pending_tx_count += 1
-                    asyncio.create_task(self._process_tx_hash(tx_hash))
-
-            except asyncio.TimeoutError:
-                logger.debug("No new pending transactions received in timeout period.")
-                continue
+                await asyncio.sleep(backoff_delay)
+                backoff_delay = min(backoff_delay * 2, 60)
+            finally:
+                if ws_web3 and subscription_id:
+                    try:
+                        await ws_web3.eth.unsubscribe(subscription_id)
+                    except Exception:
+                        pass
+                if ws_provider:
+                    try:
+                        await ws_provider.disconnect()
+                    except Exception:
+                        pass
 
     async def _process_tx_hash(self, tx_hash: str):
         """ transaction processing with comprehensive MEV analysis. """
@@ -302,6 +276,12 @@ class TxPoolScanner:
             if self._is_relevant_for_mev(tx_analysis):
                 logger.info(f"MEV-relevant transaction detected: {tx_hash}")
                 opportunities = await self._analyze_for_opportunities(tx_analysis)
+
+                # Pre-execution simulation stage
+                if opportunities and not settings.allow_unsimulated_trades:
+                    opportunities = await self._strategy_executor.simulate_opportunities_batch(
+                        opportunities
+                    )
 
                 for opportunity in opportunities:
                     self._opportunity_count += 1
@@ -408,6 +388,11 @@ class TxPoolScanner:
             for opp in opportunities:
                 opp.setdefault("simulated", False)
                 opp.setdefault("chain_id", self._chain_id)
+
+            # Rate-limit dispatch: keep top 3 by estimated_profit_eth
+            opportunities = sorted(
+                opportunities, key=lambda o: o.get("estimated_profit_eth", 0), reverse=True
+            )[:3]
 
         except Exception as e:
             logger.error(

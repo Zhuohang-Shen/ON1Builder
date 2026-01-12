@@ -1,0 +1,15 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include SECURITY.md
+include CONTRIBUTING.md
+include pyproject.toml
+include requirements.txt
+include .env.example
+
+recursive-include src/on1builder/resources *
+
+prune logs
+exclude on1builder_data.db
+global-exclude *.pyc
+global-exclude __pycache__/*

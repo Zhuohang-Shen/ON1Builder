@@ -51,8 +51,9 @@ class GasOptimizer:
                 # Initialize gas price history
                 await self._update_gas_metrics()
 
-                logger.info(
-                    f"GasOptimizer initialized. EIP-1559 support: {self._is_eip1559_supported}"
+                logger.debug(
+                    "GasOptimizer initialized. EIP-1559 support: %s",
+                    self._is_eip1559_supported,
                 )
 
             except Exception as e:

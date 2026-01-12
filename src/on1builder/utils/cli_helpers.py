@@ -3,7 +3,10 @@
 # Copyright (c) 2026 John Hauger Mitander
 
 from __future__ import annotations
+
 import functools
+import os
+import shlex
 import sys
 from typing import Any, Callable, TypeVar
 
@@ -122,3 +125,14 @@ def confirm_action(message: str, default: bool = False) -> bool:
         True if user confirms, False otherwise
     """
     return typer.confirm(f"🤔 {message}", default=default)
+
+
+def resolve_editor_command(editor: str | None) -> list[str]:
+    """Resolve an editor command from CLI input or environment defaults. """
+    if editor:
+        command = editor
+    else:
+        command = os.getenv("VISUAL") or os.getenv("EDITOR")
+        if not command:
+            command = "notepad" if os.name == "nt" else "nano"
+    return shlex.split(command, posix=os.name != "nt")

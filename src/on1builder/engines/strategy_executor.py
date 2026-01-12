@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import random
 import time
+import asyncio
 from decimal import Decimal
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -85,7 +86,7 @@ class StrategyExecutor:
 
         self._load_weights()
         self._initialize_performance_tracking()
-        logger.info(
+        logger.debug(
             "ON1Builder StrategyExecutor initialized with ML and balance awareness."
         )
 
@@ -117,7 +118,7 @@ class StrategyExecutor:
                                 float(w) for w in weights_list
                             ]
 
-                logger.info("Loaded strategy weights from file.")
+                logger.debug("Loaded strategy weights from file.")
         except (IOError, json.JSONDecodeError) as e:
             logger.warning(
                 f"Could not load strategy weights: {e}. Using default weights."
@@ -207,12 +208,13 @@ class StrategyExecutor:
             elif not opportunity_type:
                 eligible.append(strategy_name)
 
-        # Require simulation unless bypassed globally
-        if not opportunity.get("simulated", False) and not settings.allow_unsimulated_trades:
+        # Require simulation unless bypassed globally; treat missing flag as simulated for legacy callers.
+        simulated_flag = opportunity.get("simulated")
+        if simulated_flag is False and not settings.allow_unsimulated_trades:
             logger.debug(
                 "Opportunity not simulated; restricting to strategies only if global bypass is enabled."
             )
-            eligible = [] if not settings.allow_unsimulated_trades else eligible
+            eligible = []
 
         logger.debug(
             f"Eligible strategies for balance tier '{balance_tier}': {eligible}"
@@ -309,6 +311,42 @@ class StrategyExecutor:
         )
         return best_function, best_strategy
 
+    async def simulate_opportunity(self, opportunity: Dict[str, Any]) -> bool:
+        """
+        Attempt to simulate the opportunity before execution. For swap-based strategies,
+        reuse the transaction manager's simulate-only path.
+        """
+        try:
+            strategy_type = opportunity.get("strategy_type", "")
+            if strategy_type in {"arbitrage", "front_run", "back_run", "sandwich"}:
+                # For these strategies we can reuse swap simulation
+                # Use the primary swap execution as simulate_only
+                await self._tx_manager.execute_swap(
+                    opportunity, strategy_type or "simulate", simulate_only=True
+                )
+                opportunity["simulated"] = True
+                return True
+            # If not a swap-based strategy, leave as-is
+            return opportunity.get("simulated", False)
+        except Exception as e:
+            logger.debug(f"Simulation failed for opportunity: {e}")
+            return False
+
+    async def simulate_opportunities_batch(
+        self, opportunities: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Simulate a batch of opportunities with limited concurrency."""
+        semaphore = asyncio.Semaphore(settings.simulation_concurrency)
+
+        async def _simulate_one(opp: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            async with semaphore:
+                ok = await self.simulate_opportunity(opp)
+                return opp if ok else None
+
+        tasks = [_simulate_one(opp) for opp in opportunities]
+        results = await asyncio.gather(*tasks, return_exceptions=False)
+        return [r for r in results if r]
+
     async def execute_opportunity(self, opportunity: Dict[str, Any]) -> Dict[str, Any]:
         """
         ON1Builder opportunity execution with comprehensive tracking and learning.
@@ -326,6 +364,12 @@ class StrategyExecutor:
                 "reason": "Emergency mode: skipping low-profit opportunities",
                 "balance_tier": balance_summary["balance_tier"],
             }
+
+        # Ensure simulation unless globally bypassed
+        if not opportunity.get("simulated", False) and not settings.allow_unsimulated_trades:
+            simulated = await self.simulate_opportunity(opportunity)
+            if not simulated:
+                return {"success": False, "reason": "Simulation failed"}
 
         # Enforce simulation gate consistently
         if not opportunity.get("simulated", False) and not settings.allow_unsimulated_trades:

@@ -166,6 +166,22 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         self._primary_chain_id: int = (
             settings.chains[0] if getattr(settings, "chains", None) else 1
         )
+        self._oracle_feeds = {
+            "ETH": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+            "BTC": "0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c",
+            "LINK": "0x2c1d072e956AFFC0D435Cb7AC38EF18d24d9127c",
+            "USDC": "0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6",
+            "USDT": "0x3E7d1eAB13ad0104d2750B8863b489D65364e32D",
+            "DAI": "0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9",
+            "AAVE": "0x547a514d5e3769680Ce22B2361c10Ea13619e8a9",
+            "UNI": "0x553303d460EE0afB37EdFf9bE42922D8FF63220e",
+            "MKR": "0xec1D1B3b0443256cc3860e24a46F108e699484Aa",
+            "COMP": "0xdbd020CAeF83eFd542f4De03e3cF0C28A4428bd5",
+            "SNX": "0xdc3ea94cd0ac27d9a86c180091e7f78c683d3699",
+            "CRV": "0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f",
+            "STETH": "0xCfE54B5cD566aB89272946F602D76Ea879CAb4a8",
+            "WBTC": "0xfdFD9C85aD200c506Cf9e21F1FD8dd01932FBB23",
+        }
         self._background_tasks: Set[asyncio.Task] = set()
         self._init_lock = asyncio.Lock()
         self._initialized = False
@@ -185,11 +201,13 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             if self._initialized:
                 return
 
-            logger.info("Initializing ExternalAPIManager...")
+            logger.debug("Initializing ExternalAPIManager...")
             self._providers = self._build_providers()
             self._session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=15),
-                connector=aiohttp.TCPConnector(limit=100, limit_per_host=30),
+                connector=aiohttp.TCPConnector(
+                    limit=100, limit_per_host=30, enable_cleanup_closed=False
+                ),
             )
             await self._load_token_mappings_async()
             self._start_background_tasks()
@@ -327,8 +345,10 @@ class ExternalAPIManager(metaclass=SingletonMeta):
                         self._token_mappings[symbol_upper] = token_mapping
                         valid_count += 1
 
-            logger.info(
-                f"Loaded {valid_count} well-known token mappings for faster startup. Full token loading will happen on-demand."
+            logger.debug(
+                "Loaded %s well-known token mappings for faster startup. "
+                "Full token loading will happen on-demand.",
+                valid_count,
             )
 
         except Exception as e:
@@ -574,8 +594,18 @@ class ExternalAPIManager(metaclass=SingletonMeta):
                     f"Unexpected error during price fetch for {token_symbol}: {e}"
                 )
 
+        if successful_price is not None:
+            return successful_price
+
+        # Try on-chain oracle (Chainlink) on primary chain as fallback after API attempts
+        oracle_price = await self._get_oracle_price(token_symbol_upper)
+        if oracle_price is not None and oracle_price > 0:
+            self._price_cache[token_symbol_upper] = oracle_price
+            self._failed_tokens.discard(token_symbol_upper)
+            return oracle_price
+
         # Track consistently failing tokens
-        if all_failed and successful_price is None:
+        if all_failed:
             self._failed_tokens.add(token_symbol_upper)
             logger.debug(f"Added {token_symbol} to failed tokens list")
 
@@ -587,7 +617,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
                 for token in to_remove:
                     self._failed_tokens.discard(token)
 
-        return successful_price
+        return None
 
     async def _fetch_from_coingecko(
         self, symbol: str, token_id: Optional[str] = None
@@ -780,7 +810,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         # Close HTTP session
         if self._session and not self._session.closed:
             await self._session.close()
-            logger.info("ExternalAPIManager session closed.")
+            logger.debug("ExternalAPIManager session closed.")
         self._session = None
 
     def get_provider_health_status(self) -> Dict[str, Dict[str, Any]]:
@@ -796,6 +826,51 @@ class ExternalAPIManager(metaclass=SingletonMeta):
                 "backoff_until": provider.rate_tracker.backoff_until,
             }
         return status
+
+    async def _get_oracle_price(self, token_symbol: str) -> Optional[float]:
+        """
+        Fetch price from Chainlink oracle on primary chain (ETH mainnet).
+        Returns price in USD.
+        """
+        try:
+            if self._primary_chain_id != 1:
+                return None
+
+            feed_address = self._oracle_feeds.get(token_symbol.upper())
+            if not feed_address:
+                return None
+
+            if not self._onchain_web3:
+                self._onchain_web3 = await Web3ConnectionFactory.create_connection(self._primary_chain_id)
+
+            aggregator_abi = [
+                {"inputs": [], "name": "decimals", "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}], "stateMutability": "view", "type": "function"},
+                {"inputs": [], "name": "latestRoundData", "outputs": [
+                    {"internalType": "uint80", "name": "roundId", "type": "uint80"},
+                    {"internalType": "int256", "name": "answer", "type": "int256"},
+                    {"internalType": "uint256", "name": "startedAt", "type": "uint256"},
+                    {"internalType": "uint256", "name": "updatedAt", "type": "uint256"},
+                    {"internalType": "uint80", "name": "answeredInRound", "type": "uint80"},
+                ], "stateMutability": "view", "type": "function"},
+            ]
+            contract = self._onchain_web3.eth.contract(
+                address=self._onchain_web3.to_checksum_address(feed_address),
+                abi=aggregator_abi,
+            )
+            decimals = await contract.functions.decimals().call()
+            _, answer, _, updated_at, _ = await contract.functions.latestRoundData().call()
+            if answer is None or int(answer) <= 0:
+                return None
+            # basic staleness check: 1 hour
+            import time as _time
+            if updated_at and (_time.time() - int(updated_at) > 3600):
+                logger.debug(f"Oracle price stale for {token_symbol}: updated_at={updated_at}")
+                return None
+            price = float(answer) / (10 ** decimals)
+            return price
+        except Exception as e:
+            logger.debug(f"Oracle price fetch failed for {token_symbol}: {e}")
+            return None
 
     def reset_failed_tokens(self):
         """Reset the failed tokens list to give them another chance. """

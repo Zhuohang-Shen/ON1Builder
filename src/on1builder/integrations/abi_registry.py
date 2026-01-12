@@ -40,7 +40,7 @@ class ABIRegistry(metaclass=SingletonMeta):
         if self._loaded:
             return
 
-        logger.info("Initializing ABIRegistry: Loading all ABIs and token data...")
+        logger.debug("Initializing ABIRegistry: Loading all ABIs and token data...")
 
         # Load ABIs
         abi_dir = get_resource_dir() / "abi"
@@ -65,7 +65,7 @@ class ABIRegistry(metaclass=SingletonMeta):
                 except (json.JSONDecodeError, IOError) as e:
                     logger.error(f"Failed to load or parse ABI file {file_path}: {e}")
 
-        logger.info(f"Loaded {len(self._abis)} contract ABIs.")
+        logger.debug("Loaded %s contract ABIs.", len(self._abis))
 
         # Load Tokens
         tokens_file_path = get_monitored_tokens_path()
@@ -76,7 +76,7 @@ class ABIRegistry(metaclass=SingletonMeta):
                 with open(tokens_file_path, "r") as f:
                     self._tokens = json.load(f)
                 self._build_token_maps()
-                logger.info(f"Loaded and mapped {len(self._tokens)} tokens.")
+                logger.debug("Loaded and mapped %s tokens.", len(self._tokens))
             except (json.JSONDecodeError, IOError) as e:
                 logger.error(
                     f"Failed to load or parse tokens file {tokens_file_path}: {e}"

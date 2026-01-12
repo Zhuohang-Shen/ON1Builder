@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-# MIT License
-# Copyright (c) 2026 John Hauger Mitander
-
+# src/on1builder/utils/error_handling.py
+# flake8: noqa E501
+"""
+ON1Builder – Error Handling Utilities
+====================================
+Standardized error handling and recovery mechanisms.
+License: MIT
+"""
 
 from __future__ import annotations
 
@@ -11,17 +16,15 @@ import traceback
 from typing import Any, Callable, Dict, Optional, TypeVar
 
 from .logging_config import get_logger
+from .custom_exceptions import InitializationError
 
 logger = get_logger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
 
-from .custom_exceptions import InitializationError
-
-
 class RecoveryError(Exception):
-    """Raised when error recovery attempts fail. """
+    """Raised when error recovery attempts fail."""
 
     pass
 
@@ -37,15 +40,7 @@ def with_error_handling(
     retry_delay: float = 1.0,
     fallback: Optional[Any] = None,
 ):
-    """Decorator for standardized error handling.
-
-    Args:
-        component_name: Name of the component for logging
-        critical: If True, raises exception instead of returning fallback
-        retry_count: Number of retry attempts
-        retry_delay: Delay between retries
-        fallback: Value to return on failure (if not critical)
-    """
+    """Decorator for standardized error handling."""
 
     def decorator(func: F) -> F:
         @functools.wraps(func)
@@ -112,7 +107,8 @@ def with_error_handling(
             )
             return fallback
 
-        # Return appropriate wrapper based on function type
+        async_wrapper.__doc__ = (func.__doc__ or "").strip()
+        sync_wrapper.__doc__ = (func.__doc__ or "").strip()
         return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
 
     return decorator
@@ -126,19 +122,7 @@ async def safe_call(
     log_errors: bool = True,
     **kwargs,
 ) -> Any:
-    """Safely call a function with error handling.
-
-    Args:
-        func: Function to call
-        *args: Positional arguments for the function
-        component_name: Name for logging purposes
-        fallback: Value to return on error
-        log_errors: Whether to log errors
-        **kwargs: Keyword arguments for the function
-
-    Returns:
-        Function result or fallback value
-    """
+    """Safely call a function with error handling."""
     try:
         if asyncio.iscoroutinefunction(func):
             return await func(*args, **kwargs)
@@ -151,7 +135,7 @@ async def safe_call(
 
 
 class ComponentHealthTracker:
-    """Tracks component health and provides recovery suggestions. """
+    """Tracks component health and provides recovery suggestions."""
 
     def __init__(self):
         self._health_status: Dict[str, Dict[str, Any]] = {}
@@ -161,7 +145,7 @@ class ComponentHealthTracker:
     def register_component(
         self, name: str, recovery_strategy: Optional[Callable] = None
     ) -> None:
-        """Register a component for health tracking. """
+        """Register a component for health tracking."""
         self._health_status[name] = {
             "healthy": True,
             "last_check": None,
@@ -173,10 +157,8 @@ class ComponentHealthTracker:
         if recovery_strategy:
             self._recovery_strategies[name] = recovery_strategy
 
-    def report_health(
-        self, name: str, healthy: bool, error: Optional[str] = None
-    ) -> None:
-        """Report component health status. """
+    def report_health(self, name: str, healthy: bool, error: Optional[str] = None) -> None:
+        """Report component health status."""
         if name not in self._health_status:
             self.register_component(name)
 
@@ -190,11 +172,10 @@ class ComponentHealthTracker:
             self._health_status[name]["last_error"] = error
             self._failure_counts[name] += 1
         else:
-            # Reset failure count on successful health check
             self._failure_counts[name] = 0
 
     def get_unhealthy_components(self) -> Dict[str, Dict[str, Any]]:
-        """Get list of unhealthy components. """
+        """Get list of unhealthy components."""
         return {
             name: status
             for name, status in self._health_status.items()
@@ -202,7 +183,7 @@ class ComponentHealthTracker:
         }
 
     async def attempt_recovery(self, component_name: str) -> bool:
-        """Attempt to recover a failed component. """
+        """Attempt to recover a failed component."""
         if component_name not in self._recovery_strategies:
             logger.warning(f"No recovery strategy available for {component_name}")
             return False
@@ -227,13 +208,11 @@ class ComponentHealthTracker:
             return False
 
     def get_failure_count(self, component_name: str) -> int:
-        """Get failure count for a component. """
+        """Get failure count for a component."""
         return self._failure_counts.get(component_name, 0)
 
-    def should_attempt_recovery(
-        self, component_name: str, max_failures: int = 3
-    ) -> bool:
-        """Determine if recovery should be attempted. """
+    def should_attempt_recovery(self, component_name: str, max_failures: int = 3) -> bool:
+        """Determine if recovery should be attempted."""
         return self.get_failure_count(component_name) < max_failures
 
 
@@ -242,5 +221,5 @@ _health_tracker = ComponentHealthTracker()
 
 
 def get_health_tracker() -> ComponentHealthTracker:
-    """Get the global health tracker instance. """
+    """Get the global health tracker instance."""
     return _health_tracker

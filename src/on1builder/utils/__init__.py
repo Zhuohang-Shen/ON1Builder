@@ -4,8 +4,6 @@ Common utilities for ON1Builder.
 #!/usr/bin/env python3
 # MIT License
 # Copyright (c) 2026 John Hauger Mitander
-
-from .container import Container
 from .custom_exceptions import (
     ON1BuilderError,
     ConnectionError,
@@ -18,6 +16,7 @@ from .custom_exceptions import (
     ValidationError,
     SafetyCheckError,
 )
+from .container import Container
 from .logging_config import get_logger, setup_logging, reset_logging
 from .memory_optimizer import (
     get_memory_optimizer,

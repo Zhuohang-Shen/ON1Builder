@@ -9,6 +9,7 @@ import signal
 from decimal import Decimal
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
+import time
 
 from on1builder.config.manager import get_config_manager, initialize_global_config
 from on1builder.core.chain_worker import ChainWorker
@@ -17,6 +18,7 @@ from on1builder.core.multi_chain_orchestrator import MultiChainOrchestrator
 from on1builder.utils.custom_exceptions import InitializationError
 from on1builder.utils.logging_config import get_logger
 from on1builder.utils.notification_service import NotificationService
+from on1builder.utils.web3_factory import Web3ConnectionFactory
 from on1builder.utils.web3_factory import create_web3_instance
 from on1builder.utils.error_recovery import get_error_recovery_manager
 from on1builder.utils.constants import PERFORMANCE_MONITORING_INTERVAL
@@ -51,7 +53,8 @@ class MainOrchestrator:
         self._startup_time = datetime.now()
         self._error_count = 0
         self._max_consecutive_errors = 5
-        logger.info("MainOrchestrator initialized successfully")
+        logger.debug("MainOrchestrator initialized successfully")
+        time.sleep(2)  # Small delay to ensure proper startup logging
 
     async def _setup_signal_handlers(self):
         """Sets up signal handlers for graceful shutdown. """
@@ -90,8 +93,9 @@ class MainOrchestrator:
             )
 
         self._is_running = True
-        logger.info("Starting ON1Builder Orchestrator...")
-
+        logger.info("Orchestrator initialized!")
+        time.sleep(1)  # Small delay for logging clarity
+    
         try:
             await self._setup_signal_handlers()
             await self._initialize_database()
@@ -124,7 +128,7 @@ class MainOrchestrator:
 
         try:
             await self._db_interface.initialize_db()
-            logger.info("Database initialized successfully")
+            logger.info("Database initialized!")
         except Exception as e:
             raise InitializationError(
                 f"Database initialization failed: {e}", "database", e
@@ -142,7 +146,9 @@ class MainOrchestrator:
             try:
                 await self._initialize_chain_worker(chain_id)
                 successful_workers += 1
-                logger.info(f"Successfully initialized worker for chain {chain_id}")
+                logger.debug(
+                    "Successfully initialized worker for chain %s", chain_id
+                )
 
             except Exception as e:
                 failed_chains.append(chain_id)
@@ -153,12 +159,13 @@ class MainOrchestrator:
                     level="ERROR",
                     details={"chain_id": chain_id, "error": str(e)},
                 )
+                
 
         if successful_workers == 0:
             raise InitializationError("No workers were initialized successfully")
 
         if failed_chains:
-            logger.warning(f"Failed to initialize workers for chains: {failed_chains}")
+            logger.debug(f"Failed to initialize workers for chains: {failed_chains}")
 
     async def _initialize_chain_worker(self, chain_id: int):
         """Initialize a single chain worker and its balance manager. """
@@ -258,7 +265,7 @@ class MainOrchestrator:
 
     async def _shutdown(self):
         """Performs the actual shutdown of all workers and services. """
-        logger.info(f"Stopping {len(self._workers)} chain workers...")
+        logger.debug(f"Stopping {len(self._workers)} chain workers...")
 
         # Stop performance monitoring
         if self._performance_monitor_task:
@@ -292,6 +299,12 @@ class MainOrchestrator:
             await ExternalAPIManager().close()
         except Exception as exc:
             logger.debug("ExternalAPIManager close raised: %s", exc, exc_info=True)
+
+        logger.info("Closing Web3 connections...")
+        try:
+            await Web3ConnectionFactory.close_all_connections()
+        except Exception as exc:
+            logger.debug("Web3 connection cleanup raised: %s", exc, exc_info=True)
 
         logger.info("ON1Builder has been shut down gracefully.")
 

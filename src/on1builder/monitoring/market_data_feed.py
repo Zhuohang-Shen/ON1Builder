@@ -33,6 +33,9 @@ class MarketDataFeed:
             maxsize=1000, ttl=settings.heartbeat_interval / 2
         )
         self._price_history: Dict[str, List[Tuple[datetime, Decimal]]] = {}
+        self._failed_tokens: Set[str] = set()
+        self._failed_token_counts: Dict[str, int] = {}
+        self._failed_token_threshold: int = 5
         self._volatility_cache: TTLCache = TTLCache(
             maxsize=500, ttl=300
         )  # 5-minute volatility cache
@@ -40,7 +43,23 @@ class MarketDataFeed:
         self._is_running = False
         self._update_task: Optional[asyncio.Task] = None
         self._analysis_task: Optional[asyncio.Task] = None
-        logger.info("ON1Builder MarketDataFeed initialized.")
+        self.chain_id = self._resolve_chain_id()
+        logger.debug("MarketDataFeed initialized.")
+
+    def _resolve_chain_id(self) -> int:
+        """Best-effort chain ID resolution for logging/telemetry."""
+        chain_id = None
+        try:
+            eth = getattr(self._web3, "eth", None)
+            chain_id = getattr(eth, "chain_id", None)
+        except Exception:
+            chain_id = None
+
+        try:
+            return int(chain_id)
+        except Exception:
+            fallback = getattr(settings, "chains", None) or []
+            return int(fallback[0]) if fallback else 0
 
     async def start(self):
         if self._is_running:
@@ -48,7 +67,7 @@ class MarketDataFeed:
             return
 
         self._is_running = True
-        logger.info("Starting ON1Builder MarketDataFeed background updates...")
+        logger.info(f"[Chain {self.chain_id}] Market Data Feed initialized")
         self._update_task = asyncio.create_task(self._update_loop())
         self._analysis_task = asyncio.create_task(self._analysis_loop())
 
@@ -67,7 +86,7 @@ class MarketDataFeed:
                     pass
 
         await self._api_manager.close()
-        logger.info("ON1Builder MarketDataFeed stopped.")
+        logger.info("Closing Market Data Feed.")
 
     async def get_price(self, token_symbol: str) -> Optional[Decimal]:
         """Get current price with automatic caching and history tracking. """
@@ -77,11 +96,16 @@ class MarketDataFeed:
 
         symbol_upper = token_symbol.upper()
 
+        if symbol_upper in self._failed_tokens:
+            logger.debug("Skipping failed token: %s", symbol_upper)
+            return None
+
         # Limit to well-known tokens to avoid hammering APIs and flooding logs
         if symbol_upper not in self._allowed_symbols:
             logger.debug(
                 "Token %s not in allowed pricing universe, skipping.", symbol_upper
             )
+            self._record_failed_token(symbol_upper)
             return None
 
         cached_price = self._price_cache.get(symbol_upper)
@@ -100,12 +124,15 @@ class MarketDataFeed:
 
                 # Update price history
                 self._update_price_history(symbol_upper, price_decimal)
+                self._reset_failed_token(symbol_upper)
 
                 return price_decimal
+            self._record_failed_token(symbol_upper)
             return None
 
         except Exception as e:
             logger.debug(f"Error retrieving price for {symbol_upper}: {e}")
+            self._record_failed_token(symbol_upper)
             return None
 
     def _update_price_history(self, symbol: str, price: Decimal):
@@ -304,7 +331,7 @@ class MarketDataFeed:
                 # Reset API manager blacklist every hour (12 cycles of 5 minutes)
                 cleanup_counter += 1
                 if cleanup_counter >= 12:
-                    self._api_manager.reset_failed_tokens()
+                    self.reset_failed_tokens()
                     cleanup_counter = 0
 
             except asyncio.CancelledError:
@@ -398,7 +425,28 @@ class MarketDataFeed:
 
     def reset_failed_tokens(self):
         """Backward-compatible alias; delegates to the ExternalAPIManager. """
+        self._failed_tokens.clear()
+        self._failed_token_counts.clear()
         self._api_manager.reset_failed_tokens()
+
+    def get_failed_tokens(self) -> Set[str]:
+        """Return tokens that are currently blacklisted due to repeated failures."""
+        tokens = set(self._failed_tokens)
+        api_tokens = getattr(self._api_manager, "_failed_tokens", None)
+        if api_tokens:
+            tokens.update(api_tokens)
+        return tokens
+
+    def _record_failed_token(self, symbol_upper: str) -> None:
+        count = self._failed_token_counts.get(symbol_upper, 0) + 1
+        self._failed_token_counts[symbol_upper] = count
+        if count >= self._failed_token_threshold:
+            self._failed_tokens.add(symbol_upper)
+
+    def _reset_failed_token(self, symbol_upper: str) -> None:
+        if symbol_upper in self._failed_token_counts:
+            self._failed_token_counts.pop(symbol_upper, None)
+        self._failed_tokens.discard(symbol_upper)
 
     def get_market_data_summary(self) -> Dict[str, Any]:
         """Get comprehensive market data summary for monitoring. """

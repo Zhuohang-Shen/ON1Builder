@@ -15,6 +15,7 @@ from on1builder.config.loaders import settings
 from on1builder.utils.web3_factory import Web3ConnectionFactory
 from on1builder.persistence.db_interface import DatabaseInterface
 from on1builder.core.balance_manager import BalanceManager
+from on1builder.integrations.external_apis import ExternalAPIManager
 
 app = typer.Typer(help="Commands to check comprehensive system status and performance.")
 console = Console(force_terminal=True, legacy_windows=True)
@@ -105,7 +106,10 @@ async def check_comprehensive_status():
                 latest_block = await web3.eth.block_number
 
                 # Test balance check
-                balance_manager = BalanceManager(web3, settings.wallet_address)
+                wallet_address = settings.wallet_addresses.get(
+                    chain_id, settings.wallet_address
+                )
+                balance_manager = BalanceManager(web3, wallet_address)
                 balance_summary = await balance_manager.get_balance_summary()
 
                 table.add_row(
@@ -149,6 +153,20 @@ async def check_comprehensive_status():
             ", ".join(api_statuses) if api_statuses else "No APIs configured",
             f"{len(api_statuses)} active",
         )
+
+        # API cache/backoff stats
+        try:
+            api_manager = ExternalAPIManager()
+            cache_stats = api_manager.get_cache_stats()
+            backoff = cache_stats.get("provider_backoff", {})
+            table.add_row(
+                "API Cache",
+                "OK",
+                f"Failed tokens: {cache_stats.get('failed_tokens_count', 0)}",
+                f"Backoff: {len(backoff)} providers",
+            )
+        except Exception:
+            table.add_row("API Cache", "N/A", "Unavailable", "N/A")
 
         # Check notification services
         progress.update(task, description="Checking notification services...")
@@ -202,7 +220,10 @@ async def _show_balance_analysis():
         for chain_id in settings.chains:
             try:
                 web3 = await Web3ConnectionFactory.create_connection(chain_id)
-                balance_manager = BalanceManager(web3, settings.wallet_address)
+                wallet_address = settings.wallet_addresses.get(
+                    chain_id, settings.wallet_address
+                )
+                balance_manager = BalanceManager(web3, wallet_address)
                 summary = await balance_manager.get_balance_summary()
 
                 balance_info.append(
@@ -287,7 +308,10 @@ def balance_command():
                 )
 
                 web3 = await Web3ConnectionFactory.create_connection(chain_id)
-                balance_manager = BalanceManager(web3, settings.wallet_address)
+                wallet_address = settings.wallet_addresses.get(
+                    chain_id, settings.wallet_address
+                )
+                balance_manager = BalanceManager(web3, wallet_address)
                 summary = await balance_manager.get_balance_summary()
 
                 # Create detailed balance table

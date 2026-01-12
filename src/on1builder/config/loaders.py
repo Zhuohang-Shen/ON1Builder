@@ -73,13 +73,24 @@ class _EnvSettings(BaseSettings):
     gas_price_multiplier: float = 1.1
     default_gas_limit: int = 500000
     fallback_gas_price_gwei: int = 50
+    allow_unsimulated_trades: bool = False
     submission_mode: str = "public"
     simulation_backend: str = "eth_call"
+    simulation_concurrency: int = 5
     private_rpc_url: Optional[str] = None
     tenderly_base_url: str = "https://api.tenderly.co/api/v1"
     tenderly_account_slug: Optional[str] = None
     tenderly_project_slug: Optional[str] = None
     tenderly_access_token: Optional[str] = None
+    bundle_relay_url: Optional[str] = None
+    bundle_relay_auth_token: Optional[str] = None
+    bundle_signer_key: Optional[str] = Field(default=None, alias="BUNDLE_SIGNER_KEY")
+    bundle_signer_key_path: Path = Field(
+        default_factory=lambda: Path.home() / ".on1builder" / "bundle_signer.key",
+        alias="BUNDLE_SIGNER_KEY_PATH",
+    )
+    bundle_target_block_offset: int = 1
+    bundle_timeout_seconds: int = 30
 
     # Balance and profit settings
     min_wallet_balance: float = 0.05
@@ -180,7 +191,12 @@ def _gather_dynamic_env_vars() -> Dict[str, Any]:
     """
     Gathers environment variables that have dynamic keys, like RPC URLs.
     """
-    dynamic_vars = {"rpc_urls": {}, "websocket_urls": {}}
+    dynamic_vars = {
+        "rpc_urls": {},
+        "websocket_urls": {},
+        "wallet_keys": {},
+        "wallet_addresses": {},
+    }
     for key, value in os.environ.items():
         if key.startswith("RPC_URL_"):
             try:
@@ -192,6 +208,18 @@ def _gather_dynamic_env_vars() -> Dict[str, Any]:
             try:
                 chain_id = int(key.split("_")[-1])
                 dynamic_vars["websocket_urls"][chain_id] = value
+            except (ValueError, IndexError):
+                logger.warning(f"Could not parse chain ID from env var: {key}")
+        elif key.startswith("WALLET_KEY_"):
+            try:
+                chain_id = int(key.split("_")[-1])
+                dynamic_vars["wallet_keys"][chain_id] = value
+            except (ValueError, IndexError):
+                logger.warning(f"Could not parse chain ID from env var: {key}")
+        elif key.startswith("WALLET_ADDRESS_"):
+            try:
+                chain_id = int(key.split("_")[-1])
+                dynamic_vars["wallet_addresses"][chain_id] = value
             except (ValueError, IndexError):
                 logger.warning(f"Could not parse chain ID from env var: {key}")
 
@@ -209,7 +237,7 @@ def load_settings(env_path: Optional[Path] = None) -> GlobalSettings:
     """
     env_path = env_path or find_dotenv()
     if env_path:
-        logger.info(f"Loading environment variables from: {env_path}")
+        logger.debug(f"Loading environment variables from: {env_path}")
         load_dotenv(dotenv_path=env_path)
     else:
         logger.warning("No .env file found. Relying on system environment variables.")
@@ -262,7 +290,7 @@ def load_settings(env_path: Optional[Path] = None) -> GlobalSettings:
     # Instantiate the final GlobalSettings model
     try:
         global_settings = GlobalSettings(**final_config_data)
-        logger.info("Configuration loaded and validated successfully.")
+        logger.debug("Configuration loaded and validated successfully.")
         return global_settings
     except ValidationError as ve:
         logger.error(f"Configuration validation error: {ve.errors()}")

@@ -91,12 +91,19 @@ class NotificationService(metaclass=SingletonMeta):
             raw_notifications = getattr(settings, "notifications", None)
 
             self._config = _coerce_notification_settings(raw_notifications)
-            self._configured_channels = list(self._config.channels or [])
+            self._configured_channels = [
+                ch.strip()
+                for ch in (self._config.channels or [])
+                if isinstance(ch, str) and ch.strip()
+            ]
             self._min_level_value = self._level_to_int(self._config.min_level)
-            logger.info(
-                "NotificationService configured. Active channels: %s",
-                self._configured_channels or "None",
-            )
+            if self._configured_channels:
+                logger.info(
+                    "NotificationService configured. Active channels: %s",
+                    self._configured_channels,
+                )
+            else:
+                logger.debug("NotificationService configured with no active channels.")
             self._config_loaded = True
         except Exception as exc:  # ConfigurationError or load errors
             logger.debug("NotificationService configuration unavailable: %s", exc)
@@ -153,7 +160,7 @@ class NotificationService(metaclass=SingletonMeta):
         if not self._should_send(level):
             return
 
-        logger.info(f"Sending alert (Level: {level}): {title} - {message}")
+        logger.debug(f"Sending alert (Level: {level}): {title} - {message}")
         tasks = []
         for channel in self._configured_channels:
             if channel == "slack" and self._config.slack_webhook_url:

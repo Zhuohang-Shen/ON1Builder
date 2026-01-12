@@ -30,5 +30,5 @@ def start_bot():
     orchestrator = MainOrchestrator()
     asyncio.run(orchestrator.run())
 
-    logger.info("ON1Builder has shut down.")
+    logger.debug("ON1Builder has shut down.")
     info_message("Goodbye!")

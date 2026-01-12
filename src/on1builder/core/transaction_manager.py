@@ -5,11 +5,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import time
+from pathlib import Path
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
+from eth_account import Account
 from eth_account.datastructures import SignedTransaction
+from eth_account.messages import encode_defunct
 from eth_account.signers.local import LocalAccount
 from web3 import AsyncWeb3
 from web3.types import TxParams, Wei
@@ -59,7 +64,7 @@ class TransactionManager:
 
         self._abi_registry = ABIRegistry()
         self._nonce_manager = NonceManager(web3, self._address)
-        self._safety_guard = SafetyGuard(web3)
+        self._safety_guard = SafetyGuard(web3, balance_manager=balance_manager, chain_id=chain_id)
         self._db_interface = DatabaseInterface()
         self._api_manager = ExternalAPIManager()
         self._notification_service = NotificationService()
@@ -72,6 +77,13 @@ class TransactionManager:
         self._tenderly_base_url = getattr(
             settings, "tenderly_base_url", "https://api.tenderly.co/api/v1"
         )
+        self._bundle_relay_url = getattr(settings, "bundle_relay_url", None)
+        self._bundle_relay_auth = getattr(settings, "bundle_relay_auth_token", None)
+        self._bundle_target_block_offset = getattr(settings, "bundle_target_block_offset", 1)
+        self._bundle_timeout_seconds = getattr(settings, "bundle_timeout_seconds", 30)
+        self._bundle_signer_key = getattr(settings, "bundle_signer_key", None)
+        self._bundle_signer_key_path = getattr(settings, "bundle_signer_key_path", None)
+        self._bundle_signer_account: Optional[LocalAccount] = None
 
         # Performance tracking
         self._execution_stats = {
@@ -80,9 +92,10 @@ class TransactionManager:
             "total_profit_eth": 0.0,
             "total_gas_spent_eth": 0.0,
         }
+        self._last_bundle_hash: Optional[str] = None
 
-        logger.info(
-            f"ON1Builder TransactionManager initialized for chain ID {chain_id}."
+        logger.debug(
+            "ON1Builder TransactionManager initialized for chain ID %s.", chain_id
         )
 
     async def initialize(self):
@@ -96,8 +109,9 @@ class TransactionManager:
                 )
 
             await self._gas_optimizer.initialize()
-            logger.info(
-                f"TransactionManager initialization complete for chain {self._chain_id}"
+            logger.debug(
+                "TransactionManager initialization complete for chain %s",
+                self._chain_id,
             )
         except Exception as e:
             logger.error(f"Error initializing TransactionManager: {e}")
@@ -206,6 +220,18 @@ class TransactionManager:
                     tx_hash_hex = await self._send_private_transaction(signed_tx.rawTransaction)
                     logger.info(f"Private transaction sent: {tx_hash_hex}")
                     return tx_hash_hex
+                elif settings.submission_mode == "bundle":
+                    if not self._bundle_relay_url:
+                        raise StrategyExecutionError(
+                            "submission_mode is bundle but no bundle_relay_url configured"
+                        )
+                    tx_hash_hex = signed_tx.hash.hex()
+                    bundle_hash = await self._send_bundle([signed_tx.rawTransaction])
+                    self._last_bundle_hash = bundle_hash
+                    logger.info(
+                        "Bundle submitted: %s (tx: %s)", bundle_hash, tx_hash_hex
+                    )
+                    return tx_hash_hex
                 else:
                     raise StrategyExecutionError(
                         f"Submission mode '{settings.submission_mode}' not implemented; use public or private."
@@ -303,6 +329,109 @@ class TransactionManager:
             raise StrategyExecutionError("Private submission returned no result")
         return result
 
+    async def _send_bundle(self, raw_txs: List[bytes]) -> str:
+        """
+        Send a bundle to a MEV-Boost/Flashbots relay via eth_sendBundle.
+        """
+        if not self._bundle_relay_url:
+            raise StrategyExecutionError("Bundle relay URL not configured.")
+
+        # Target a future block
+        target_block = (await self._web3.eth.block_number) + self._bundle_target_block_offset
+        import time as _time
+        now = int(_time.time())
+
+        payload: Dict[str, Any] = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "eth_sendBundle",
+            "params": [
+                {
+                    "txs": [tx.hex() for tx in raw_txs],
+                    "blockNumber": hex(target_block),
+                    "minTimestamp": now,
+                    "maxTimestamp": now + self._bundle_timeout_seconds,
+                }
+            ],
+        }
+
+        headers = {"Content-Type": "application/json"}
+        if self._bundle_relay_auth:
+            headers["Authorization"] = f"Bearer {self._bundle_relay_auth}"
+        try:
+            body = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+            signer = self._get_bundle_signer_account()
+            signature = signer.sign_message(encode_defunct(text=body)).signature.hex()
+            headers["X-Flashbots-Signature"] = f"{signer.address}:{signature}"
+        except Exception as e:
+            raise StrategyExecutionError(f"Failed to sign bundle payload: {e}") from e
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                self._bundle_relay_url, data=body, headers=headers, timeout=15
+            ) as resp:
+                data = await resp.json()
+                if "error" in data:
+                    raise StrategyExecutionError(
+                        f"Bundle submission failed: {data['error'].get('message', data['error'])}"
+                    )
+                result = data.get("result")
+                if isinstance(result, dict):
+                    bundle_hash = result.get("bundleHash") or result.get("hash")
+                    if bundle_hash:
+                        return bundle_hash
+                if isinstance(result, str) and result:
+                    return result
+                raise StrategyExecutionError("Bundle submission returned no result")
+
+    def _get_bundle_signer_account(self) -> LocalAccount:
+        if self._bundle_signer_account:
+            return self._bundle_signer_account
+
+        key = self._bundle_signer_key
+        key_path = self._bundle_signer_key_path
+        if not key and key_path:
+            try:
+                path = Path(key_path).expanduser()
+                if path.exists():
+                    key = path.read_text(encoding="utf-8").strip()
+            except Exception as e:
+                logger.warning(f"Failed to read bundle signer key: {e}")
+
+        if not key:
+            account = Account.create()
+            key = account.key.hex()
+            if not key.startswith("0x"):
+                key = f"0x{key}"
+
+            if key_path:
+                path = Path(key_path).expanduser()
+                try:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    if not path.exists():
+                        path.write_text(f"{key}\n", encoding="utf-8")
+                        try:
+                            os.chmod(path, 0o600)
+                        except Exception:
+                            # Best effort only; Windows may not support chmod.
+                            pass
+                        logger.info("Generated bundle signer key at %s", path)
+                except Exception as e:
+                    logger.warning(f"Failed to persist bundle signer key: {e}")
+
+        if not key:
+            raise StrategyExecutionError("Bundle signer key is missing.")
+
+        try:
+            if not key.startswith("0x"):
+                key = f"0x{key}"
+            self._bundle_signer_account = Account.from_key(key)
+        except Exception as e:
+            raise StrategyExecutionError(f"Invalid bundle signer key: {e}") from e
+
+        self._bundle_signer_key = key
+        return self._bundle_signer_account
+
     async def execute_and_confirm(
         self,
         tx_params: TxParams,
@@ -333,10 +462,10 @@ class TransactionManager:
 
             status = receipt.get("status") == 1
 
-            # Post-execution balance and profit calculation. The balance delta already
-            # includes gas spend, so don't subtract gas again.
+            # Post-execution balance and profit calculation.
             post_balance = await self._balance_manager.update_balance(force=True)
-            actual_profit_eth = float(post_balance - pre_balance)
+            balance_delta = Decimal(post_balance) - Decimal(pre_balance)
+            actual_profit_eth = float(balance_delta - Decimal(str(gas_cost_eth)))
 
             # Update stats
             self._execution_stats["total_transactions"] += 1
@@ -580,30 +709,47 @@ class TransactionManager:
         return resolved_path
 
     async def _calculate_amounts_with_slippage(
-        self, opportunity: Dict[str, Any]
+        self, opportunity: Dict[str, Any], expected_amount_out: Optional[int] = None
     ) -> Tuple[int, int]:
         """Calculate swap amounts with slippage protection. """
         amount_in = opportunity.get("amount_in", 0)
-        expected_amount_out = opportunity.get("expected_amount_out", 0)
+        expected_out = (
+            expected_amount_out
+            if expected_amount_out is not None
+            else opportunity.get("expected_amount_out", 0)
+        )
 
         # Convert to Wei if necessary
         if isinstance(amount_in, float):
             amount_in = int(amount_in * 10**18)
-        if isinstance(expected_amount_out, float):
-            expected_amount_out = int(expected_amount_out * 10**18)
+        if isinstance(expected_out, float):
+            expected_out = int(expected_out * 10**18)
+
+        if expected_out <= 0:
+            raise StrategyExecutionError("Missing expected_amount_out; cannot protect slippage.")
 
         # Apply slippage tolerance
         slippage_multiplier = 1 - (settings.slippage_tolerance / 100)
-        amount_out_min = int(expected_amount_out * slippage_multiplier)
+        amount_out_min = int(expected_out * slippage_multiplier)
 
         return amount_in, amount_out_min
 
+    async def _quote_expected_output(self, dex_contract, amount_in: int, path: List[str]) -> int:
+        """Quote expected output using getAmountsOut on the DEX contract."""
+        try:
+            amounts = await dex_contract.functions.getAmountsOut(amount_in, path).call()
+            if not amounts or len(amounts) < 2:
+                raise StrategyExecutionError("DEX quote returned no amounts.")
+            return int(amounts[-1])
+        except Exception as e:
+            raise StrategyExecutionError(f"Failed to quote expected output: {e}")
+
     async def execute_swap(
-        self, opportunity: Dict[str, Any], strategy_name: str
+        self, opportunity: Dict[str, Any], strategy_name: str, simulate_only: bool = False
     ) -> Dict[str, Any]:
         """ swap execution with comprehensive validation. """
 
-        if not opportunity.get("simulated", False) and not settings.allow_unsimulated_trades:
+        if not opportunity.get("simulated", False) and not settings.allow_unsimulated_trades and not simulate_only:
             reason = "Opportunity not simulated and allow_unsimulated_trades is False"
             logger.warning(reason)
             return {"success": False, "reason": reason}
@@ -622,8 +768,15 @@ class TransactionManager:
         # Normalize path to checksum addresses for web3 compatibility
         raw_path = await self._get_swap_path(opportunity)
         path = [self._web3.to_checksum_address(addr) for addr in raw_path]
+
+        # Determine expected output; if not provided, quote via DEX
+        expected_out = opportunity.get("expected_amount_out", 0)
+        if not expected_out or expected_out <= 0:
+            expected_out = await self._quote_expected_output(dex_contract, amount_in=opportunity.get("amount_in", 0), path=path)
+            opportunity["expected_amount_out"] = expected_out
+
         amount_in, amount_out_min = await self._calculate_amounts_with_slippage(
-            opportunity
+            opportunity, expected_amount_out=expected_out
         )
 
         deadline = int(time.time()) + 300  # 5 minute deadline
@@ -681,6 +834,9 @@ class TransactionManager:
         if not opportunity.get("simulated", False):
             await self._simulate_transaction(tx_params)
             opportunity["simulated"] = True
+
+        if simulate_only:
+            return {"success": True, "simulated": True}
 
         # Override gas price if specified
         if opportunity.get("gas_price_wei"):

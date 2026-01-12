@@ -64,14 +64,14 @@ class ChainWorker:
         self._start_time = 0
         self._memory_optimizer = get_memory_optimizer()
 
-        logger.info(f"ON1Builder ChainWorker created for chain ID: {self.chain_id}")
+        logger.debug("ChainWorker created for chain ID: %s", self.chain_id)
 
     async def initialize(self):
         """
         ON1Builder initialization with balance management and comprehensive validation.
         """
         try:
-            logger.info(
+            logger.debug(
                 f"[Chain {self.chain_id}] Initializing ON1Builder worker components..."
             )
 
@@ -81,9 +81,14 @@ class ChainWorker:
             # Initialize account
             from eth_account import Account
 
-            self.account = Account.from_key(settings.wallet_key)
+            wallet_key = settings.wallet_keys.get(self.chain_id, settings.wallet_key)
+            wallet_address = settings.wallet_addresses.get(
+                self.chain_id, settings.wallet_address
+            )
 
-            if self.account.address.lower() != settings.wallet_address.lower():
+            self.account = Account.from_key(wallet_key)
+
+            if wallet_address and self.account.address.lower() != wallet_address.lower():
                 raise InitializationError(
                     "WALLET_KEY does not correspond to WALLET_ADDRESS.",
                     component="ChainWorker",
@@ -96,7 +101,7 @@ class ChainWorker:
             # Check initial balance requirements
             balance_summary = await self.balance_manager.get_balance_summary()
             if balance_summary["balance"] < settings.emergency_balance_threshold:
-                logger.warning(
+                logger.debug(
                     f"[Chain {self.chain_id}] Very low balance detected: {balance_summary['balance']:.6f} ETH"
                 )
 
@@ -133,19 +138,19 @@ class ChainWorker:
             )
 
             logger.info(
-                f"[Chain {self.chain_id}] ON1Builder worker initialized successfully."
+                f"[Chain {self.chain_id}] ChainWorker initialized!"
             )
-            logger.info(
+            logger.debug(
                 f"[Chain {self.chain_id}] Balance tier: {balance_summary['balance_tier']}, "
                 f"Max investment: {balance_summary['max_investment']:.6f} ETH"
             )
 
         except Exception as e:
             logger.critical(
-                f"[Chain {self.chain_id}] Failed to initialize: {e}", exc_info=True
+                f"[Chain {self.chain_id}] Node offline or syncing"
             )
             raise InitializationError(
-                f"ChainWorker {self.chain_id} failed to initialize."
+                f"ChainWorker {self.chain_id} Execution Client initialization failed"
             ) from e
 
     async def start(self):
@@ -171,7 +176,7 @@ class ChainWorker:
         self.is_running = True
         self._start_time = asyncio.get_event_loop().time()
 
-        logger.info(f"[Chain {self.chain_id}] Starting ON1Builder background tasks...")
+        logger.debug(f"[Chain {self.chain_id}] Starting ON1Builder background tasks...")
 
         # Start core monitoring tasks
         self._tasks.append(asyncio.create_task(self.market_feed.start()))
@@ -187,7 +192,7 @@ class ChainWorker:
         if not self.is_running:
             return
 
-        logger.info(f"[Chain {self.chain_id}] Stopping ON1Builder worker...")
+        logger.debug(f"[Chain {self.chain_id}] Stopping ON1Builder worker...")
         self.is_running = False
 
         # Cancel all tasks
@@ -209,7 +214,7 @@ class ChainWorker:
         # Final performance report
         await self._generate_final_report()
 
-        logger.info(f"[Chain {self.chain_id}] ON1Builder worker stopped.")
+        logger.info(f"Closing ChainWorker...")
 
     def _cleanup_worker_caches(self) -> None:
         """Memory cleanup callback for worker-specific caches. """
@@ -272,7 +277,7 @@ class ChainWorker:
 
                 # Emergency balance warning
                 if balance_summary["emergency_mode"]:
-                    logger.warning(
+                    logger.debug(
                         f"[Chain {self.chain_id}] EMERGENCY MODE: Very low balance!"
                     )
 

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from datetime import datetime
@@ -290,7 +291,37 @@ class ProfitCalculator:
 
                 self._settings = get_settings()
 
-            wallet_address = self._settings.wallet_address.lower()
+            chain_id = None
+            try:
+                chain_id_value = self._web3.eth.chain_id
+                if asyncio.iscoroutine(chain_id_value):
+                    chain_id = await chain_id_value
+                elif callable(chain_id_value):
+                    resolved = chain_id_value()
+                    if asyncio.iscoroutine(resolved):
+                        chain_id = await resolved
+                    else:
+                        chain_id = resolved
+                else:
+                    chain_id = chain_id_value
+            except Exception:
+                chain_id = None
+
+            try:
+                chain_id = int(chain_id) if chain_id is not None else None
+            except Exception:
+                chain_id = None
+
+            wallet_address = getattr(self._settings, "wallet_address", None)
+            wallet_addresses = getattr(self._settings, "wallet_addresses", None)
+            if (
+                chain_id is not None
+                and isinstance(wallet_addresses, dict)
+                and wallet_addresses
+            ):
+                wallet_address = wallet_addresses.get(int(chain_id), wallet_address)
+
+            wallet_address = wallet_address.lower() if wallet_address else ""
 
             # Calculate net token changes for our wallet
             net_changes = {}

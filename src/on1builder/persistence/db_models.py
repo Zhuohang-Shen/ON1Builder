@@ -22,6 +22,10 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
+def utcnow() -> datetime.datetime:
+    """Timezone-aware UTC timestamp for SQLAlchemy defaults."""
+    return datetime.datetime.now(datetime.timezone.utc)
+
 
 class Transaction(Base):
     """ SQLAlchemy model for storing transaction records with comprehensive tracking. """
@@ -42,9 +46,7 @@ class Transaction(Base):
         Boolean, nullable=True
     )  # True for success (1), False for failure (0)
     strategy = Column(String(50), nullable=True, index=True)
-    timestamp = Column(
-        DateTime, default=datetime.datetime.utcnow, nullable=False, index=True
-    )
+    timestamp = Column(DateTime, default=utcnow, nullable=False, index=True)
     raw_tx = Column(Text, nullable=True)
 
     # ON1Builder tracking fields
@@ -99,9 +101,7 @@ class ProfitRecord(Base):
     base_token_address = Column(String(42), nullable=True)
     quote_token_address = Column(String(42), nullable=True)
     execution_time_s = Column(Float, nullable=True)
-    timestamp = Column(
-        DateTime, default=datetime.datetime.utcnow, nullable=False, index=True
-    )
+    timestamp = Column(DateTime, default=utcnow, nullable=False, index=True)
 
     # Strategy-specific fields
     flashloan_amount = Column(Float, nullable=True)  # Amount borrowed via flashloan
@@ -165,7 +165,7 @@ class StrategyPerformance(Base):
 
     # Time tracking
     last_execution = Column(DateTime, nullable=True)
-    last_updated = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    last_updated = Column(DateTime, default=utcnow, nullable=False)
 
     # Performance window (e.g., daily, hourly)
     window_start = Column(DateTime, nullable=True)
@@ -203,9 +203,7 @@ class MarketCondition(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     chain_id = Column(Integer, nullable=False, index=True)
-    timestamp = Column(
-        DateTime, default=datetime.datetime.utcnow, nullable=False, index=True
-    )
+    timestamp = Column(DateTime, default=utcnow, nullable=False, index=True)
 
     # Gas market conditions
     gas_price_gwei = Column(Float, nullable=True)

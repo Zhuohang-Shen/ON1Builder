@@ -54,8 +54,11 @@ class MultiChainOrchestrator:
         # Initialize balance managers for each chain
         for chain_id in self.workers.keys():
             web3 = await create_web3_instance(chain_id)
+            wallet_address = settings.wallet_addresses.get(
+                chain_id, settings.wallet_address
+            )
             self.balance_managers[chain_id] = BalanceManager(
-                web3, settings.wallet_address
+                web3, wallet_address
             )
             await self.balance_managers[chain_id].update_balance()
 

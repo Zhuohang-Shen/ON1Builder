@@ -24,7 +24,18 @@ class DatabaseInterface:
     Handles engine creation, session management, and provides a clean API for CRUD operations.
     """
 
+    _instance: Optional["DatabaseInterface"] = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized_once = False
+        return cls._instance
+
     def __init__(self):
+        if getattr(self, "_initialized_once", False):
+            return
+
         raw_db_settings = getattr(settings, "database", None)
         if isinstance(raw_db_settings, DatabaseSettings):
             db_settings = raw_db_settings
@@ -46,7 +57,13 @@ class DatabaseInterface:
         self._initialized = False
         # Detect stub engine by presence of _store attribute
         self._is_stub = hasattr(self._engine, "_store")
-        logger.info(f"DatabaseInterface initialized for URL: {self._db_url}")
+        self._initialized_once = True
+        logger.debug("DatabaseInterface initialized for URL: %s", self._db_url)
+
+    @classmethod
+    def reset_instance(cls) -> None:
+        """Reset singleton instance for tests."""
+        cls._instance = None
 
     # ------------------------------------------------------------------
     # Compatibility accessors
@@ -73,7 +90,7 @@ class DatabaseInterface:
             async with self._engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
         self._initialized = True
-        logger.info("Database schema checked and initialized.")
+        logger.debug("Database schema checked and initialized.")
 
     async def health_check(self) -> bool:
         """Lightweight DB health check."""
@@ -277,4 +294,4 @@ class DatabaseInterface:
         """Disposes of the database engine connection pool. """
         if self._engine and hasattr(self._engine, "dispose"):
             await self._engine.dispose()
-            logger.info("Database engine disposed.")
+            logger.info("Closing database and disposing engine connections.")

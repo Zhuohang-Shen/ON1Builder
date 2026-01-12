@@ -10,6 +10,10 @@ from typing import Optional, Dict
 from web3 import AsyncWeb3
 from web3.middleware import ExtraDataToPOAMiddleware
 from web3.providers import AsyncHTTPProvider
+from web3._utils.http_session_manager import HTTPSessionManager, DEFAULT_HTTP_TIMEOUT
+from web3._utils.async_caching import async_lock
+from web3._utils.caching import generate_cache_key
+from aiohttp import ClientSession, ClientTimeout, TCPConnector
 
 # Try to import websocket provider, but make it optional
 try:
@@ -69,7 +73,7 @@ class Web3ConnectionFactory:
                     return web3
                 del cls._connections[chain_id]
 
-            logger.info(f"Creating new Web3 connection for chain {chain_id}")
+            logger.debug(f"Creating new Web3 connection for chain {chain_id}")
             web3 = await cls._create_new_connection(chain_id)
             cls._connections[chain_id] = web3
             return web3
@@ -87,8 +91,8 @@ class Web3ConnectionFactory:
             try:
                 web3 = await cls._create_websocket_connection(chain_id, ws_url)
                 if web3 and await cls._test_connection(web3):
-                    logger.info(
-                        f"WebSocket connection established for chain {chain_id}"
+                    logger.debug(
+                        "WebSocket connection established for chain %s", chain_id
                     )
                     return web3
             except Exception as e:
@@ -104,7 +108,7 @@ class Web3ConnectionFactory:
         try:
             web3 = await cls._create_http_connection(chain_id, http_url)
             if web3 and await cls._test_connection(web3):
-                logger.info(f"HTTP connection established for chain {chain_id}")
+                logger.debug("HTTP connection established for chain ID: %s", chain_id)
                 return web3
         except Exception as e:
             raise ConnectionError(
@@ -138,7 +142,7 @@ class Web3ConnectionFactory:
     @classmethod
     async def _create_http_connection(cls, chain_id: int, http_url: str) -> AsyncWeb3:
         """Create an HTTP connection. """
-        provider = AsyncHTTPProvider(http_url)
+        provider = QuietAsyncHTTPProvider(http_url)
         web3 = AsyncWeb3(provider)
         cls._configure_web3_instance(web3, chain_id)
         return web3
@@ -192,3 +196,100 @@ async def create_web3_instance(chain_id: int) -> AsyncWeb3:
         Configured AsyncWeb3 instance
     """
     return await Web3ConnectionFactory.create_connection(chain_id)
+
+
+class QuietHTTPSessionManager(HTTPSessionManager):
+    """Custom session manager to avoid deprecated connector flags in web3."""
+
+    async def async_cache_and_return_session(
+        self, endpoint_uri, session: Optional[ClientSession] = None, request_timeout=None
+    ) -> ClientSession:
+        cache_key = generate_cache_key(f"{id(asyncio.get_event_loop())}:{endpoint_uri}")
+        evicted_items = None
+
+        async with async_lock(self.session_pool, self._lock):
+            if cache_key not in self.session_cache:
+                if session is None:
+                    session = ClientSession(
+                        raise_for_status=True,
+                        connector=TCPConnector(
+                            force_close=True, enable_cleanup_closed=False
+                        ),
+                    )
+
+                cached_session, evicted_items = self.session_cache.cache(
+                    cache_key, session
+                )
+                self.logger.debug(
+                    "Async session cached: %s, %s", endpoint_uri, cached_session
+                )
+            else:
+                cached_session = self.session_cache.get_cache_entry(cache_key)
+                session_is_closed = cached_session.closed
+                session_loop_is_closed = cached_session._loop.is_closed()
+
+                warning = (
+                    "Async session was closed"
+                    if session_is_closed
+                    else (
+                        "Loop was closed for async session"
+                        if session_loop_is_closed
+                        else None
+                    )
+                )
+                if warning:
+                    self.logger.debug(
+                        "%s: %s, %s. Creating and caching a new async session for uri.",
+                        warning,
+                        endpoint_uri,
+                        cached_session,
+                    )
+
+                    self.session_cache._data.pop(cache_key)
+                    if not session_is_closed:
+                        await cached_session.close()
+                    self.logger.debug(
+                        "Async session closed and evicted from cache: %s",
+                        cached_session,
+                    )
+
+                    _session = ClientSession(
+                        raise_for_status=True,
+                        connector=TCPConnector(
+                            force_close=True, enable_cleanup_closed=False
+                        ),
+                    )
+                    cached_session, evicted_items = self.session_cache.cache(
+                        cache_key, _session
+                    )
+                    self.logger.debug(
+                        "Async session cached: %s, %s", endpoint_uri, cached_session
+                    )
+
+        if evicted_items is not None:
+            evicted_sessions = list(evicted_items.values())
+            for evicted_session in evicted_sessions:
+                self.logger.debug(
+                    "Async session cache full. Session evicted from cache: %s",
+                    evicted_session,
+                )
+            timeout = (
+                request_timeout.total
+                if isinstance(request_timeout, ClientTimeout) and request_timeout.total
+                else DEFAULT_HTTP_TIMEOUT + 0.1
+            )
+            asyncio.create_task(
+                self._async_close_evicted_sessions(timeout, evicted_sessions)
+            )
+
+        return cached_session
+
+
+class QuietAsyncHTTPProvider(AsyncHTTPProvider):
+    """AsyncHTTPProvider that uses QuietHTTPSessionManager."""
+
+    def __init__(self, endpoint_uri=None, request_kwargs=None, **kwargs):
+        super().__init__(
+            endpoint_uri=endpoint_uri, request_kwargs=request_kwargs, **kwargs
+        )
+        self._request_session_manager = QuietHTTPSessionManager()

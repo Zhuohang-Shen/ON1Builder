@@ -53,8 +53,9 @@ class MemoryOptimizer:
         # Process reference for memory monitoring
         self._process = psutil.Process()
 
-        logger.info(
-            f"MemoryOptimizer initialized with {gc_threshold_mb}MB GC threshold"
+        logger.debug(
+            "MemoryOptimizer initialized with %sMB GC threshold",
+            gc_threshold_mb,
         )
 
     async def start_monitoring(self):
@@ -281,7 +282,7 @@ async def initialize_memory_optimization():
     """Initialize global memory optimization. """
     optimizer = get_memory_optimizer()
     await optimizer.start_monitoring()
-    logger.info("Global memory optimization initialized")
+    logger.debug("Global memory optimization initialized")
 
 
 async def cleanup_memory_optimization():
@@ -290,4 +291,4 @@ async def cleanup_memory_optimization():
     if _memory_optimizer:
         await _memory_optimizer.stop_monitoring()
         _memory_optimizer = None
-    logger.info("Global memory optimization cleaned up")
+    logger.debug("Global memory optimization cleaned up")

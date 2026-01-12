@@ -26,6 +26,28 @@ app.add_typer(config_app, name="config")
 app.add_typer(status_app, name="status")
 
 
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
+    setup: bool = typer.Option(
+        False,
+        "--setup",
+        "--config",
+        help="Run the interactive configuration wizard to create .env.",
+    ),
+):
+    """Entry point for global CLI options. """
+    if setup:
+        from on1builder.cli.setup_wizard import run_setup_wizard
+
+        run_setup_wizard()
+        raise typer.Exit()
+
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
+
+
 @app.command(name="version")
 def show_version():
     """Displays the application version. """

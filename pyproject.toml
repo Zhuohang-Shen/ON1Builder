@@ -92,11 +92,25 @@ where = ["src"]
 # development dependencies (no versions specified)
 [project.optional-dependencies]
 dev = [
+  "build",
   "pytest",
+  "pytest-asyncio",
   "pytest-cov",
   "black",
   "isort",
   "mypy",
   "flake8",
-  "pre-commit"
+  "pre-commit",
+  "twine"
 ]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+  "ignore:websockets\\.legacy is deprecated:DeprecationWarning",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+on1builder = ["resources/**/*"]

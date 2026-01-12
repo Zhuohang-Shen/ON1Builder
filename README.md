@@ -6,9 +6,21 @@
 ![Tests](https://img.shields.io/badge/Tests-Manual%20%2F%20Local-inactive)
 ![Coverage](https://img.shields.io/badge/Coverage-TBD-lightgrey)
 
-Async, multi-chain MEV/arbitrage engine with safety rails, flashloan support, and live telemetry. Minimal external dependencies (only Etherscan key needed; prices use free, keyless feeds).
+Async, multi-chain MEV/arbitrage engine with safety rails, flashloan support, and live telemetry. Highly customizable via config.
+
+## Overview
+ON1Builder is a modular MEV searcher framework designed for building and deploying arbitrage, front-running, and back-running strategies across multiple EVM-compatible blockchains. It emphasizes safety, configurability, and observability, making it suitable for both development and production environments.
 
 ---
+
+## Key Features
+- **Multi-Chain Support**: Easily connect to any EVM-compatible chain with configurable RPC and WebSocket endpoints (prefers Nethermind, Geth nodes).
+- **MEV Strategies**: Built-in support for common MEV strategies including arbitrage, front-running, back-running, and flashloan-based trades.
+- **Safety Mechanisms**: Configurable slippage caps, gas price ceilings, and balance tiers to minimize risk.
+- **Flashloan Integration**: Seamless integration with popular flashloan providers for capital-efficient trading.
+- **Simulation Backends**: Supports multiple simulation backends (eth_call, Anvil, Tenderly) for pre-execution validation.
+- **Telemetry & Monitoring**: Heartbeats, performance summaries, structured logging, and notification channels (Slack, Telegram, Discord, Email) for real-time monitoring.
+- **Extensible Architecture**: Modular design allows for easy addition of new strategies, chains, and features.
 
 ## Quick Snapshot
 
@@ -23,7 +35,7 @@ Async, multi-chain MEV/arbitrage engine with safety rails, flashloan support, an
 
 <img width="9867" height="2500" alt="Dia" src="https://github.com/user-attachments/assets/9acc0ac1-c5f3-45f1-a8c9-bf6bf1f3b232" />
 
-## Fast Start
+## Quick Start
 
 ### 1. Clone & env
 ```bash
@@ -35,12 +47,14 @@ cd ON1Builder
 python -m venv .venv
 . .venv/Scripts/activate
 pip install -r requirements.txt
+pip install -e .
 ```
 - Linux/MacOS
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+pip install -e .
 ```
 
 ### 2. Configure (minimum)
@@ -59,6 +73,7 @@ python -m on1builder status check
 python -m on1builder run start
 ```
 
+
 > With public RPC/WS, txpool scanning is disabled on purpose (unreliable pending tx support). Provide a private WS endpoint if you want pending tx monitoring.
 
 ## Architecture Map
@@ -75,6 +90,11 @@ python -m on1builder run start
 | `ETHERSCAN_API_KEY` | Optional but recommended for ABI/tx metadata |
 | `MIN_PROFIT_ETH` | Profit floor per trade (ETH) |
 | `MAX_GAS_PRICE_GWEI` | Hard gas ceiling |
+| `SUBMISSION_MODE` | `public`, `private`, or `bundle` (relay submission) |
+| `PRIVATE_RPC_URL` | Private RPC endpoint (Flashbots Protect, etc.) |
+| `BUNDLE_RELAY_URL` | Bundle relay endpoint (MEV-Boost/Flashbots) |
+| `SIMULATION_BACKEND` | `eth_call`, `anvil`, or `tenderly` |
+| `SIMULATION_CONCURRENCY` | Max concurrent simulations |
 | `NOTIFICATION_CHANNELS` | `slack,telegram,discord,email` (blank = off) |
 
 Full list lives in `.env.example`.
@@ -106,6 +126,35 @@ black src tests && flake8 src tests && mypy src
 ```
 
 Pre-commit hooks are configured in `.pre-commit-config.yaml`.
+
+## Flashloan setup
+You need to deploy your own flashloan provider contract or use an existing one. Make sure to configure the flashloan provider address in your strategy settings.
+
+To learn about deploying a flashloan contract, refer to the documentation of the flashloan provider you intend to use (e.g., Aave, dYdX) we recommend  [Aave](https://docs.aave.com/developers/guides/flash-loans)
+
+Here's a basic outline of the steps involved:
+
+1. Choose a Flashloan Provider: Decide which flashloan provider you want to use (e.g., Aave, dYdX).
+2. We recommend using Remix IDE for deploying smart contracts. Open Remix IDE in your web browser.
+3. Create a New File: In Remix, create a new Solidity file (e.g., FlashloanProvider.sol) and write or paste the flashloan contract code.
+4. Compile the Contract: Use the Solidity compiler in Remix to compile your flashloan contract.
+5. Deploy the Contract:
+   - Select the appropriate environment (e.g., Injected Web3 for MetaMask).
+   - Choose the contract you want to deploy.
+   - Click the "Deploy" button and confirm the transaction in your wallet.
+6. Note the Contract Address: After deployment, copy the contract address. You'll need to configure this address in .env
+
+## API Keys
+
+The bot is able to function without API keys, but some features are limited. It's recommended to set up the following free API keys for best experience:
+
+- **Etherscan API Key**: For fetching contract ABIs and transaction metadata. Sign up at [Etherscan](https://etherscan.io/apis).
+- **Tenderly Account**: For advanced simulation backend. Sign up at [Tenderly](https://tenderly.co/).
+- **Binance API Key**: For fetching token prices. Sign up at [Binance](https://www.binance.com/en/support/faq/360002502072).
+- CoinGecko API Key: Optional, for additional price data. Sign up at [CoinGecko](https://www.coingecko.com/en/api).
+- Cryptocompare API Key: Optional, for additional price data. Sign up at [Cryptocompare](https://min-api.cryptocompare.com/).
+- CoinMarketCap API Key: Optional, for additional price data. Sign up at [CoinMarketCap](https://coinmarketcap.com/api/).
+
 
 ## Safety Notes
 

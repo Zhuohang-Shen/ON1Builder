@@ -22,12 +22,42 @@ class NonceManager:
     and ensure sequential, unique nonces for all outgoing transactions.
     """
 
+    _instances: dict[str, "NonceManager"] = {}
+
+    def __new__(cls, web3: AsyncWeb3, address: str):
+        key = cls._instance_key(address)
+        instance = cls._instances.get(key)
+        if instance is None:
+            instance = super().__new__(cls)
+            cls._instances[key] = instance
+            instance._initialized = False
+        return instance
+
     def __init__(self, web3: AsyncWeb3, address: str):
+        if getattr(self, "_initialized", False):
+            if self._web3 is not web3 or self._address != address:
+                self._web3 = web3
+                self._address = address
+                self._nonce = None
+            return
+
         self._web3 = web3
         self._address = address
-        self._nonce: Optional[int] = None
+        self._nonce = None
         self._lock = asyncio.Lock()
-        logger.info(f"NonceManager initialized for address: {self._address}")
+        self._initialized = True
+        logger.debug("NonceManager initialized for address: %s", self._address)
+
+    @classmethod
+    def _instance_key(cls, address: str) -> str:
+        if isinstance(address, str):
+            return address.lower()
+        return str(address)
+
+    @classmethod
+    def reset_instance(cls) -> None:
+        """Reset cached instances for tests or manual reinitialization."""
+        cls._instances.clear()
 
     async def _initialize_nonce(self):
         """Fetches the initial nonce from the blockchain. """

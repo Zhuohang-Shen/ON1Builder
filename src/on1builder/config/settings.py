@@ -99,6 +99,8 @@ class GlobalSettings(BaseModel):
     wallet_key: str
     wallet_address: str
     profit_receiver_address: Optional[str] = None
+    wallet_keys: Dict[int, str] = Field(default_factory=dict)
+    wallet_addresses: Dict[int, str] = Field(default_factory=dict)
 
     # Chains
     chains: List[int] = Field(default=[1])
@@ -132,6 +134,32 @@ class GlobalSettings(BaseModel):
         from .validation import ConfigValidator
 
         return ConfigValidator.validate_private_key(v)
+
+    @field_validator("wallet_keys", mode="after")
+    @classmethod
+    def validate_wallet_keys(cls, v):
+        """Validate per-chain wallet keys. """
+        if not v:
+            return v
+        from .validation import ConfigValidator
+
+        validated = {}
+        for chain_id, key in v.items():
+            validated[int(chain_id)] = ConfigValidator.validate_private_key(key)
+        return validated
+
+    @field_validator("wallet_addresses", mode="after")
+    @classmethod
+    def validate_wallet_addresses(cls, v):
+        """Validate per-chain wallet addresses. """
+        if not v:
+            return v
+        from .validation import ConfigValidator
+
+        validated = {}
+        for chain_id, address in v.items():
+            validated[int(chain_id)] = ConfigValidator.validate_wallet_address(address)
+        return validated
 
     @field_validator("chains", "poa_chains", mode="after")
     @classmethod
@@ -180,6 +208,12 @@ class GlobalSettings(BaseModel):
             # Update any normalized values
             for key, value in validated_config.items():
                 if hasattr(self, key) and getattr(self, key) != value:
+                    current = getattr(self, key)
+                    if isinstance(current, BaseModel) and isinstance(value, dict):
+                        try:
+                            value = current.__class__(**value)
+                        except Exception:
+                            continue
                     setattr(self, key, value)
 
         except ImportError:
@@ -208,9 +242,12 @@ class GlobalSettings(BaseModel):
         default="eth_call",
         description="Simulation backend to use (eth_call, anvil, tenderly).",
     )
+    simulation_concurrency: int = Field(
+        default=5, description="Maximum concurrent simulations in the pipeline."
+    )
     submission_mode: str = Field(
         default="public",
-        description="Transaction submission mode: public or private (bundles/relay).",
+        description="Transaction submission mode: public, private, or bundle (MEV-Boost/Flashbots).",
     )
     private_rpc_url: Optional[str] = Field(
         default=None,
@@ -228,6 +265,27 @@ class GlobalSettings(BaseModel):
     )
     tenderly_access_token: Optional[str] = Field(
         default=None, description="Tenderly access token for simulation."
+    )
+    bundle_relay_url: Optional[str] = Field(
+        default=None,
+        description="MEV-Boost/Flashbots bundle relay URL when submission_mode=bundle.",
+    )
+    bundle_relay_auth_token: Optional[str] = Field(
+        default=None, description="Auth token if required by the bundle relay."
+    )
+    bundle_signer_key: Optional[str] = Field(
+        default=None,
+        description="Private key used to sign bundle payloads for relays (auto-generated if missing).",
+    )
+    bundle_signer_key_path: Path = Field(
+        default_factory=lambda: Path.home() / ".on1builder" / "bundle_signer.key",
+        description="Path to persist the bundle signer key.",
+    )
+    bundle_target_block_offset: int = Field(
+        default=1, description="Target block offset for bundle submission."
+    )
+    bundle_timeout_seconds: int = Field(
+        default=30, description="Max seconds to keep bundle valid."
     )
     fallback_gas_price_gwei: int = Field(default=50, gt=0)
     min_wallet_balance: float = Field(default=0.05, ge=0)

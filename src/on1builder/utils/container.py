@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# MIT License
-# Copyright (c) 2026 John Hauger Mitander
-
+# src/on1builder/utils/container.py
+# flake8: noqa E501
 from __future__ import annotations
 
 import inspect
@@ -14,7 +12,7 @@ logger = get_logger(__name__)
 
 
 class Container:
-    """A dependency injection container for managing component lifecycles with async support. """
+    """A dependency injection container for managing component lifecycles with async support."""
 
     def __init__(self) -> None:
         self._instances: Dict[str, Any] = {}
@@ -23,50 +21,27 @@ class Container:
         self._singleton_instances: Dict[str, Any] = {}
 
     def register_instance(self, key: str, instance: Any) -> None:
-        """
-        Registers a pre-instantiated object in the container.
-
-        Args:
-            key: The unique identifier for the component
-            instance: The already-created instance to register
-        """
+        """Registers a pre-instantiated object in the container."""
         if not key:
             raise ValueError("Key cannot be empty")
-
-        logger.debug(
-            f"Registering instance for key: '{key}' (type: {type(instance).__name__})"
-        )
+        logger.debug(f"Registering instance for key: '{key}' (type: {type(instance).__name__})")
         self._instances[key] = instance
 
     def register_provider(self, key: str, provider: Callable[[], T]) -> None:
-        """
-        Registers a provider (factory function) for lazy instantiation.
-
-        Args:
-            key: The unique identifier for the component
-            provider: A zero-argument function that returns an instance of the component
-        """
+        """Registers a provider (factory function) for lazy instantiation."""
         if not key:
             raise ValueError("Key cannot be empty")
         if not callable(provider):
             raise TypeError("Provider must be callable")
-
         logger.debug(f"Registering provider for key: '{key}'")
         self._providers[key] = provider
 
     def register_singleton(self, key: str, provider: Callable[[], T]) -> None:
-        """
-        Registers a singleton provider that will only be instantiated once.
-
-        Args:
-            key: The unique identifier for the singleton
-            provider: A zero-argument function that returns an instance
-        """
+        """Registers a singleton provider that will only be instantiated once."""
         if not key:
             raise ValueError("Key cannot be empty")
         if not callable(provider):
             raise TypeError("Provider must be callable")
-
         logger.debug(f"Registering singleton provider for key: '{key}'")
 
         def singleton_wrapper():
@@ -77,20 +52,7 @@ class Container:
         self._providers[key] = singleton_wrapper
 
     def get(self, key: str) -> Any:
-        """
-        Resolves and returns a component by its key.
-        Instantiates the component using its provider if it hasn't been already.
-
-        Args:
-            key: The unique identifier for the component.
-
-        Returns:
-            The resolved component instance.
-
-        Raises:
-            KeyError: If the key is not registered.
-            RuntimeError: If a circular dependency is detected.
-        """
+        """Resolves and returns a component by its key."""
         if key in self._instances:
             return self._instances[key]
 
@@ -113,29 +75,15 @@ class Container:
         return instance
 
     def get_or_none(self, key: str) -> Optional[Any]:
-        """
-        Safely resolves a component, returning None if not registered.
-
-        Args:
-            key: The unique identifier for the component.
-
-        Returns:
-            The resolved component instance or None.
-        """
+        """Safely resolves a component, returning None if not registered."""
         try:
             return self.get(key)
         except (KeyError, RuntimeError):
             return None
 
     async def shutdown(self) -> None:
-        """
-        Gracefully shuts down all registered instances that have a 'stop' or 'close' method.
-        This is typically called once when the application is exiting.
-        """
+        """Gracefully shuts down all registered instances that have a 'stop' or 'close' method."""
         logger.info("Shutting down all containerized components...")
-
-        # We shut down in the reverse order of creation, which is a simple and
-        # effective way to handle dependencies (e.g., TransactionManager before DB).
         for key, instance in reversed(list(self._instances.items())):
             shutdown_method = None
             if hasattr(instance, "stop") and callable(instance.stop):
@@ -151,9 +99,7 @@ class Container:
                     else:
                         shutdown_method()
                 except Exception as e:
-                    logger.error(
-                        f"Error shutting down component '{key}': {e}", exc_info=True
-                    )
+                    logger.error(f"Error shutting down component '{key}': {e}", exc_info=True)
 
         self._instances.clear()
         self._providers.clear()
@@ -165,5 +111,5 @@ _container = Container()
 
 
 def get_container() -> Container:
-    """Provides access to the global DI container. """
+    """Provides access to the global DI container."""
     return _container

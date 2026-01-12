@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import sys
+import dotenv
 from typing import Dict
 
 from on1builder.utils.path_helpers import get_base_dir
@@ -21,7 +22,8 @@ except ImportError:
     HAVE_COLORLOG = False
 
 _loggers: Dict[str, logging.Logger] = {}
-
+_logging_initialized = False
+dotenv.load_dotenv()
 
 def _configure_io_encoding() -> None:
     """
@@ -74,12 +76,16 @@ def setup_logging(force_setup: bool = False) -> None:
     # Import settings lazily to avoid circular imports
     try:
         from on1builder.config.loaders import get_settings
-
         settings = get_settings()
-        log_level = "DEBUG" if settings.debug else "INFO"
+        log_level = os.getenv("LOG_LEVEL")
+        if getattr(settings, "debug", False):
+            log_level = "DEBUG"
+        elif not log_level:
+            log_level = "INFO"
+        log_level = log_level.upper()
     except Exception:
         # Fallback if settings not available
-        log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+        log_level = (os.environ.get("LOG_LEVEL") or "INFO").upper()
 
     use_json = os.environ.get("LOG_FORMAT", "console").lower() == "json"
 
@@ -100,14 +106,13 @@ def setup_logging(force_setup: bool = False) -> None:
         formatter = JsonFormatter(datefmt="%Y-%m-%dT%H:%M:%S%z")
     elif HAVE_COLORLOG:
         formatter = colorlog.ColoredFormatter(
-            "%(log_color)s%(asctime)s [%(name)s:%(levelname)s]%(reset)s %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
+            "%(log_color)s[%(levelname)s]%(reset)s %(message)s",
             log_colors={
-                "DEBUG": "cyan",
-                "INFO": "green",
-                "WARNING": "yellow",
-                "ERROR": "red",
-                "CRITICAL": "red,bg_white",
+            "DEBUG": "cyan",
+            "INFO": "green",
+            "WARNING": "yellow",
+            "ERROR": "red",
+            "CRITICAL": "red,bg_white",
             },
         )
     else:
@@ -137,11 +142,27 @@ def setup_logging(force_setup: bool = False) -> None:
             # Don't fail if we can't set up file logging
             root_logger.warning(f"Could not set up file logging: {e}")
 
+    # Reduce chatty third-party loggers
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.orm").setLevel(logging.WARNING)
+
     # Set the global logger instance
     _loggers["on1builder"] = root_logger
-    root_logger.info(
-        f"Logging initialized. Level: {log_level}, Format: {'JSON' if use_json else 'Console'}"
-    )
+    global _logging_initialized
+    if not _logging_initialized:
+        root_logger.info(
+            "Logging initialized. Level: %s, Format: %s",
+            log_level,
+            "JSON" if use_json else "Console",
+        )
+        _logging_initialized = True
+    else:
+        root_logger.debug(
+            "Logging reconfigured. Level: %s, Format: %s",
+            log_level,
+            "JSON" if use_json else "Console",
+        )
 
 
 def get_logger(name: str) -> logging.Logger:
