@@ -64,5 +64,18 @@ async def test_database_interface_roundtrip(monkeypatch, tmp_path):
     assert summary["trade_count"] >= 1
     assert summary["total_profit_eth"] >= 0.5
 
+    price_payload = {
+        "chain_id": 1,
+        "symbol": "ETH",
+        "price_usd": 2000.0,
+        "source": "external_api",
+    }
+    saved_price = await interface.save_market_price(price_payload)
+    assert saved_price is not None
+
+    latest_price = await interface.get_latest_market_price(chain_id=1, symbol="eth")
+    assert latest_price is not None
+    assert latest_price.symbol == "ETH"
+
     await interface.close()
     DatabaseInterface.reset_instance()

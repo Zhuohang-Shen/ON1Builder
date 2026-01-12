@@ -98,6 +98,7 @@ python -m on1builder run start
 | `NOTIFICATION_CHANNELS` | `slack,telegram,discord,email` (blank = off) |
 | `ORACLE_FEEDS` | JSON map of chain_id → symbol → Chainlink feed address |
 | `ORACLE_STALE_SECONDS` | Max age (seconds) before oracle price is treated as stale |
+| `MARKET_PRICE_PERSIST_INTERVAL` | Persist price snapshots to DB every N seconds (0 disables) |
 | `STARTUP_TEST_TRANSACTION` | Run a diagnostic self-tx on startup (requires `ALLOW_INSUFFICIENT_FUNDS_TESTS`) |
 | `ALLOW_INSUFFICIENT_FUNDS_TESTS` | Bypass local balance checks for test sends (debug only) |
 

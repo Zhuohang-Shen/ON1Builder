@@ -95,9 +95,7 @@ class _EnvSettings(BaseSettings):
     allow_insufficient_funds_tests: bool = Field(
         False, alias="ALLOW_INSUFFICIENT_FUNDS_TESTS"
     )
-    startup_test_transaction: bool = Field(
-        False, alias="STARTUP_TEST_TRANSACTION"
-    )
+    startup_test_transaction: bool = Field(False, alias="STARTUP_TEST_TRANSACTION")
 
     # Balance and profit settings
     min_wallet_balance: float = 0.05
@@ -149,6 +147,9 @@ class _EnvSettings(BaseSettings):
     # Market sentiment
     use_market_sentiment: bool = True
     sentiment_weight: float = 0.3
+    market_price_persist_interval: int = Field(
+        60, alias="MARKET_PRICE_PERSIST_INTERVAL"
+    )
 
     # MEV settings
     mev_strategies_enabled: bool = True
@@ -309,9 +310,7 @@ def load_settings(env_path: Optional[Path] = None) -> GlobalSettings:
     # Gather all static and dynamic data
     final_config_data = env_settings.model_dump()
     final_config_data.update(_gather_dynamic_env_vars())
-    final_config_data["oracle_feeds"] = _parse_json_env(
-        env_settings.oracle_feeds, {}
-    )
+    final_config_data["oracle_feeds"] = _parse_json_env(env_settings.oracle_feeds, {})
 
     # Populate nested models
     final_config_data["api"] = api_settings

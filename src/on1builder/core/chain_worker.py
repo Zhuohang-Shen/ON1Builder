@@ -242,9 +242,7 @@ class ChainWorker:
                 gas_price = max_allowed
 
             nonce = (
-                await self.nonce_manager.get_next_nonce()
-                if self.nonce_manager
-                else 0
+                await self.nonce_manager.get_next_nonce() if self.nonce_manager else 0
             )
             tx_params = {
                 "from": self.account.address,

@@ -243,6 +243,33 @@ class MarketCondition(Base):
         }
 
 
+class MarketPrice(Base):
+    """Model for storing token price snapshots."""
+
+    __tablename__ = "market_prices"
+    __table_args__ = (
+        Index("ix_market_prices_chain_symbol_ts", "chain_id", "symbol", "timestamp"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    chain_id = Column(Integer, nullable=False, index=True)
+    symbol = Column(String(32), nullable=False, index=True)
+    price_usd = Column(Float, nullable=False)
+    source = Column(String(32), nullable=True)
+    timestamp = Column(DateTime, default=utcnow, nullable=False, index=True)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Converts the model instance to a dictionary."""
+        return {
+            "id": self.id,
+            "chain_id": self.chain_id,
+            "symbol": self.symbol,
+            "price_usd": self.price_usd,
+            "source": self.source,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+
 # Create composite indexes for better query performance
 Index(
     "idx_transactions_strategy_timestamp", Transaction.strategy, Transaction.timestamp

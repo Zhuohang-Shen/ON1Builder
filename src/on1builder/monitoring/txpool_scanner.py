@@ -598,7 +598,9 @@ class TxPoolScanner:
                             "expected_amount_out", analysis.get("amount_out_min")
                         )
                 if opp.get("estimated_profit_eth") is not None:
-                    opp.setdefault("expected_profit_eth", opp.get("estimated_profit_eth"))
+                    opp.setdefault(
+                        "expected_profit_eth", opp.get("estimated_profit_eth")
+                    )
 
             # Rate-limit dispatch: keep top 3 by estimated_profit_eth
             opportunities = sorted(

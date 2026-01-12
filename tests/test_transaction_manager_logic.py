@@ -193,9 +193,7 @@ async def test_execute_and_confirm_tracks_profit_net_of_gas():
 async def test_execute_and_confirm_adds_profit_analysis_when_enabled(monkeypatch):
     tm = build_manager()
     tm._profit_calculator = SimpleNamespace(
-        calculate_transaction_profit=AsyncMock(
-            return_value={"net_profit_usd": 1.23}
-        )
+        calculate_transaction_profit=AsyncMock(return_value={"net_profit_usd": 1.23})
     )
     monkeypatch.setattr(
         "on1builder.core.transaction_manager.settings",
@@ -313,7 +311,9 @@ async def test_sign_and_send_bypasses_balance_checks_when_flag(monkeypatch):
     tm._web3.eth.send_raw_transaction = AsyncMock(return_value=b"\x12")
     tm._chain_id = 1
     tm._address = "0xabc"
-    tm._balance_manager = SimpleNamespace(update_balance=AsyncMock(return_value=Decimal("0")))
+    tm._balance_manager = SimpleNamespace(
+        update_balance=AsyncMock(return_value=Decimal("0"))
+    )
     tm._safety_guard = SimpleNamespace(
         check_transaction=AsyncMock(return_value=(True, ""))
     )

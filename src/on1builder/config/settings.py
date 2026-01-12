@@ -376,6 +376,7 @@ class GlobalSettings(BaseModel):
     # Market sentiment
     use_market_sentiment: bool = Field(default=True)
     sentiment_weight: float = Field(default=0.3, ge=0, le=1.0)
+    market_price_persist_interval: int = Field(default=60, ge=0)
 
     # MEV settings
     mev_strategies_enabled: bool = Field(default=True)

@@ -121,9 +121,7 @@ def test_load_configured_oracle_feeds_merges(monkeypatch):
 
     monkeypatch.setattr(
         "on1builder.integrations.external_apis.settings",
-        SimpleNamespace(
-            oracle_feeds={"1": {"ETH": "0x2"}, "56": {"BNB": "0xabc"}}
-        ),
+        SimpleNamespace(oracle_feeds={"1": {"ETH": "0x2"}, "56": {"BNB": "0xabc"}}),
     )
 
     manager._load_configured_oracle_feeds()

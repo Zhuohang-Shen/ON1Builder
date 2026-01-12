@@ -153,7 +153,9 @@ async def test_txpool_scanner_executes_selected_strategies(monkeypatch):
         assert opportunity.get("path") == path
         assert opportunity.get("amount_in") == amount_in
         assert opportunity.get("profit_potential", 0) > 0
-        assert opportunity.get("expected_profit_eth") == opportunity.get("estimated_profit_eth")
+        assert opportunity.get("expected_profit_eth") == opportunity.get(
+            "estimated_profit_eth"
+        )
 
 
 @pytest.mark.asyncio

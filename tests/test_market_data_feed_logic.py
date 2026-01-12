@@ -31,6 +31,7 @@ def stub_settings(monkeypatch):
     stub = SimpleNamespace(
         heartbeat_interval=10,
         chains=[1],
+        market_price_persist_interval=0,
     )
     monkeypatch.setattr("on1builder.monitoring.market_data_feed.settings", stub)
     yield
@@ -39,6 +40,8 @@ def stub_settings(monkeypatch):
 @pytest.mark.asyncio
 async def test_price_cache_and_blacklist(monkeypatch):
     feed = MarketDataFeed(DummyWeb3())
+    feed._db_ready = True
+    feed._db_interface.save_market_price = AsyncMock()
     feed._api_manager.get_price = AsyncMock(
         side_effect=[1.0, None, None, None, None, None]
     )
@@ -56,6 +59,19 @@ async def test_price_cache_and_blacklist(monkeypatch):
     assert "FAIL" in feed.get_failed_tokens()
     # Blacklisted tokens short-circuit
     assert await feed.get_price("FAIL") is None
+
+
+@pytest.mark.asyncio
+async def test_price_persistence(monkeypatch):
+    feed = MarketDataFeed(DummyWeb3())
+    feed._persist_interval = 1
+    feed._db_ready = True
+    feed._db_interface.save_market_price = AsyncMock()
+    feed._api_manager.get_price = AsyncMock(return_value=123.45)
+
+    price = await feed.get_price("ETH")
+    assert price == Decimal("123.45")
+    feed._db_interface.save_market_price.assert_called_once()
 
 
 @pytest.mark.asyncio

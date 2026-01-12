@@ -219,9 +219,7 @@ class TransactionManager:
         for attempt in range(settings.transaction_retry_count):
             try:
                 if settings.submission_mode == "public":
-                    tx_hash = await self._web3.eth.send_raw_transaction(
-                        raw_tx
-                    )
+                    tx_hash = await self._web3.eth.send_raw_transaction(raw_tx)
                     logger.info(f"Transaction sent: {tx_hash.hex()}")
                     return tx_hash.hex()
                 elif settings.submission_mode == "private":
