@@ -26,7 +26,7 @@ idna==3.11
 markdown-it-py==4.0.0
 mdurl==0.1.2
 multidict==6.7.0
-parsimonious==0.10.0
+parsimonious==0.11.0
 prompt_toolkit==3.0.52
 propcache==0.4.1
 psutil==7.2.1
@@ -52,5 +52,5 @@ typing_extensions==4.15.0
 urllib3==2.6.3
 wcwidth==0.2.14
 web3==7.14.0
-websockets==15.0.1
+websockets==16.0
 yarl==1.22.0
