@@ -9,7 +9,11 @@ import pytest
 from pytest import approx
 
 from on1builder.core.transaction_manager import TransactionManager
-from on1builder.utils.custom_exceptions import StrategyExecutionError
+from on1builder.utils.custom_exceptions import (
+    StrategyExecutionError,
+    InsufficientFundsError,
+    TransactionError,
+)
 
 
 class StubWeb3:
@@ -30,6 +34,18 @@ class StubWeb3:
         if unit == "ether":
             return Decimal(value) / Decimal(10**18)
         return value
+
+
+class StubWeb3ForBuild(StubWeb3):
+    def __init__(self, gas_price, estimate_gas=None):
+        super().__init__()
+        future = asyncio.Future()
+        future.set_result(gas_price)
+        self.eth.gas_price = future
+        if estimate_gas is None:
+            self.eth.estimate_gas = AsyncMock(return_value=21000)
+        else:
+            self.eth.estimate_gas = estimate_gas
 
 
 def build_manager(override_sign_send: bool = True):
@@ -73,6 +89,90 @@ def build_manager(override_sign_send: bool = True):
         }
     )
     return tm
+
+
+def test_format_raw_tx_prefixes_0x():
+    tm = TransactionManager.__new__(TransactionManager)
+    raw_tx = b"\xde\xad\xbe\xef"
+    assert tm._format_raw_tx(raw_tx) == "0xdeadbeef"
+
+
+def test_encode_uniswap_v3_path():
+    tm = TransactionManager.__new__(TransactionManager)
+    tokens = [
+        "0x" + "11" * 20,
+        "0x" + "22" * 20,
+    ]
+    fees = [3000]
+    encoded = tm._encode_uniswap_v3_path(tokens, fees)
+    assert len(encoded) == 43
+    assert encoded[:20].hex() == tokens[0][2:]
+    assert encoded[20:23] == (3000).to_bytes(3, "big")
+    assert encoded[23:].hex() == tokens[1][2:]
+
+
+@pytest.mark.asyncio
+async def test_build_transaction_rejects_gas_price_over_cap(monkeypatch):
+    stub_settings = SimpleNamespace(
+        dynamic_gas_pricing=False,
+        max_gas_price_gwei=5,
+        default_gas_limit=21000,
+    )
+    monkeypatch.setattr("on1builder.core.transaction_manager.settings", stub_settings)
+
+    tm = TransactionManager.__new__(TransactionManager)
+    tm._web3 = StubWeb3ForBuild(gas_price=10 * 10**9)
+    tm._address = "0xabc"
+    tm._chain_id = 1
+    tm._nonce_manager = SimpleNamespace(get_next_nonce=AsyncMock(return_value=1))
+    tm._balance_manager = SimpleNamespace()
+
+    with pytest.raises(TransactionError):
+        await tm._build_transaction(to="0xdef", value=0)
+
+
+@pytest.mark.asyncio
+async def test_build_transaction_blocks_when_gas_unprofitable(monkeypatch):
+    stub_settings = SimpleNamespace(
+        dynamic_gas_pricing=True,
+        max_gas_price_gwei=200,
+        default_gas_limit=21000,
+    )
+    monkeypatch.setattr("on1builder.core.transaction_manager.settings", stub_settings)
+
+    tm = TransactionManager.__new__(TransactionManager)
+    tm._web3 = StubWeb3ForBuild(gas_price=1 * 10**9)
+    tm._address = "0xabc"
+    tm._chain_id = 1
+    tm._nonce_manager = SimpleNamespace(get_next_nonce=AsyncMock(return_value=1))
+    tm._balance_manager = SimpleNamespace(
+        calculate_optimal_gas_price=AsyncMock(return_value=(100, False))
+    )
+
+    with pytest.raises(InsufficientFundsError):
+        await tm._build_transaction(to="0xdef", value=0)
+
+
+@pytest.mark.asyncio
+async def test_build_transaction_falls_back_to_default_gas(monkeypatch):
+    stub_settings = SimpleNamespace(
+        dynamic_gas_pricing=False,
+        max_gas_price_gwei=200,
+        default_gas_limit=500000,
+    )
+    monkeypatch.setattr("on1builder.core.transaction_manager.settings", stub_settings)
+
+    tm = TransactionManager.__new__(TransactionManager)
+    tm._web3 = StubWeb3ForBuild(
+        gas_price=1 * 10**9, estimate_gas=AsyncMock(side_effect=Exception("boom"))
+    )
+    tm._address = "0xabc"
+    tm._chain_id = 1
+    tm._nonce_manager = SimpleNamespace(get_next_nonce=AsyncMock(return_value=1))
+    tm._balance_manager = SimpleNamespace()
+
+    tx_params = await tm._build_transaction(to="0xdef", value=0)
+    assert tx_params["gas"] == stub_settings.default_gas_limit
 
 
 @pytest.mark.asyncio

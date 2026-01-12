@@ -132,7 +132,7 @@ class _EnvSettings(BaseSettings):
     connection_retry_count: int = 5
     connection_retry_delay: float = 5.0
 
-    # ON1Builder arbitrage settings
+    # - arbitrage settings
     arbitrage_scan_interval: int = 15
 
     # Performance monitoring
@@ -164,6 +164,7 @@ class _EnvSettings(BaseSettings):
     infura_project_id: Optional[str] = Field(None, alias="INFURA_PROJECT_ID")
 
     uniswap_v2_router_addresses: str = Field("{}", alias="UNISWAP_V2_ROUTER_ADDRESSES")
+    uniswap_v3_router_addresses: str = Field("{}", alias="UNISWAP_V3_ROUTER_ADDRESSES")
     sushiswap_router_addresses: str = Field("{}", alias="SUSHISWAP_ROUTER_ADDRESSES")
     aave_v3_pool_addresses: str = Field("{}", alias="AAVE_V3_POOL_ADDRESSES")
     simple_flashloan_contract_addresses: str = Field(
@@ -256,6 +257,7 @@ def load_settings(env_path: Optional[Path] = None) -> GlobalSettings:
 
     contract_settings = ContractAddressSettings(
         uniswap_v2_router=env_settings.uniswap_v2_router_addresses,
+        uniswap_v3_router=env_settings.uniswap_v3_router_addresses,
         sushiswap_router=env_settings.sushiswap_router_addresses,
         aave_v3_pool=env_settings.aave_v3_pool_addresses,
         simple_flashloan_contract=env_settings.simple_flashloan_contract_addresses,

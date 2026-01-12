@@ -1,5 +1,7 @@
-# src/on1builder/utils/container.py
-# flake8: noqa E501
+#!/usr/bin/env python3
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 from __future__ import annotations
 
 import inspect

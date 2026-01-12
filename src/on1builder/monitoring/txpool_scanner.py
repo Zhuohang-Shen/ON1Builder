@@ -38,6 +38,7 @@ class TxPoolScanner:
     MAX_TX_CACHE_SIZE = 1000
     MAX_OPPORTUNITY_CACHE_SIZE = 500
     CACHE_CLEANUP_THRESHOLD = 0.8
+    SUPPORTED_SWAP_DEXES = {"uniswap_v2", "uniswap_v3", "sushiswap", "pancakeswap"}
 
     def __init__(
         self, web3: AsyncWeb3, strategy_executor: StrategyExecutor, chain_id: int
@@ -60,7 +61,7 @@ class TxPoolScanner:
         self._processed_tx_count = 0
         self._opportunity_count = 0
 
-        # ON1Builder caching with size management
+        # - caching with size management
         self._tx_analysis_cache: Dict[str, Dict] = {}
         self._opportunity_cache: Dict[str, Dict] = {}
         self._cache_access_times: Dict[str, datetime] = {}
@@ -295,19 +296,36 @@ class TxPoolScanner:
 
     def _analyze_transaction_comprehensive(self, tx: TxData) -> Dict[str, Any]:
         """Performs comprehensive analysis of a transaction for MEV opportunities."""
+        raw_input = tx.get("input", "")
+        if isinstance(raw_input, (bytes, bytearray)):
+            input_hex = raw_input.hex()
+        elif isinstance(raw_input, str):
+            input_hex = raw_input
+        else:
+            input_hex = str(raw_input)
+        if input_hex and not input_hex.startswith("0x"):
+            input_hex = f"0x{input_hex}"
+
         analysis = {
             "tx_hash": tx["hash"].hex(),
+            "hash": tx["hash"].hex(),
             "from": tx["from"],
             "to": tx.get("to"),
             "value_eth": float(self._web3.from_wei(tx.get("value", 0), "ether")),
+            "value_wei": tx.get("value", 0),
             "gas_price": tx.get("gasPrice", 0),
+            "gasPrice": tx.get("gasPrice", 0),
             "gas_limit": tx.get("gas", 0),
             "timestamp": datetime.now(),
-            "input_data": tx.get("input", "").hex(),
+            "input_data": input_hex,
             "mev_type": None,
             "target_dex": None,
             "estimated_profit_potential": 0.0,
             "risk_score": 0.0,
+            "swap_path": None,
+            "amount_in": None,
+            "amount_out_min": None,
+            "pool_fee": None,
         }
 
         # Analyze target address efficiently
@@ -328,6 +346,16 @@ class TxPoolScanner:
             analysis
         )
         analysis["risk_score"] = self._calculate_risk_score(analysis)
+        swap_params = self._extract_swap_params(analysis)
+        if swap_params:
+            analysis.update(
+                {
+                    "swap_path": swap_params.get("path"),
+                    "amount_in": swap_params.get("amount_in"),
+                    "amount_out_min": swap_params.get("amount_out_min"),
+                    "pool_fee": swap_params.get("pool_fee"),
+                }
+            )
 
         return analysis
 
@@ -357,26 +385,114 @@ class TxPoolScanner:
 
         return False
 
+    def _extract_swap_params(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract swap parameters from common Uniswap V2-style calls."""
+        input_data = analysis.get("input_data", "")
+        if not input_data or len(input_data) < 10:
+            return {}
+
+        func_selector = input_data[:10]
+        data_hex = input_data[10:]
+        if not data_hex:
+            return {}
+
+        swap_selectors = {
+            "0x38ed1739": (
+                "exact_in",
+                ["uint256", "uint256", "address[]", "address", "uint256"],
+            ),
+            "0x8803dbee": (
+                "exact_out",
+                ["uint256", "uint256", "address[]", "address", "uint256"],
+            ),
+            "0x7ff36ab5": (
+                "eth_exact_in",
+                ["uint256", "address[]", "address", "uint256"],
+            ),
+            "0x18cbafe5": (
+                "exact_in",
+                ["uint256", "uint256", "address[]", "address", "uint256"],
+            ),
+            "0x414bf389": (
+                "v3_exact_input_single",
+                ["(address,address,uint24,address,uint256,uint256,uint256,uint160)"],
+            ),
+        }
+
+        if func_selector not in swap_selectors:
+            return {}
+
+        try:
+            import eth_abi
+        except Exception:
+            return {}
+
+        try:
+            kind, types = swap_selectors[func_selector]
+            decoded = eth_abi.decode(types, bytes.fromhex(data_hex))
+            if kind == "v3_exact_input_single":
+                params = decoded[0]
+                token_in = params[0]
+                token_out = params[1]
+                fee = int(params[2])
+                amount_in = int(params[5])
+                amount_out_min = int(params[6])
+                return {
+                    "path": [token_in, token_out],
+                    "amount_in": amount_in,
+                    "amount_out_min": amount_out_min,
+                    "pool_fee": fee,
+                }
+            if kind == "eth_exact_in":
+                amount_out_min = int(decoded[0])
+                path = list(decoded[1])
+                amount_in = int(analysis.get("value_wei", 0))
+            elif kind == "exact_out":
+                amount_out_min = int(decoded[0])
+                amount_in = int(decoded[1])
+                path = list(decoded[2])
+            else:
+                amount_in = int(decoded[0])
+                amount_out_min = int(decoded[1])
+                path = list(decoded[2])
+            return {
+                "path": path,
+                "amount_in": amount_in,
+                "amount_out_min": amount_out_min,
+            }
+        except Exception:
+            return {}
+
     async def _analyze_for_opportunities(
         self, analysis: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """Analyzes transaction for specific MEV opportunities."""
         opportunities = []
+        target_dex = analysis.get("target_dex")
+        swap_supported = (
+            target_dex in self.SUPPORTED_SWAP_DEXES
+            and analysis.get("swap_path")
+            and analysis.get("amount_in")
+            and (target_dex != "uniswap_v3" or analysis.get("pool_fee") is not None)
+        )
 
         try:
             # Front-running opportunities
-            if analysis["mev_type"] == "sandwich_attack" or analysis["value_eth"] > 5.0:
+            if swap_supported and (
+                analysis["mev_type"] == "sandwich_attack" or analysis["value_eth"] > 5.0
+            ):
                 front_run_opp = await self._analyze_front_running(analysis)
                 if front_run_opp:
                     opportunities.append(front_run_opp)
 
             # Back-running opportunities
-            back_run_opp = await self._analyze_back_running(analysis)
-            if back_run_opp:
-                opportunities.append(back_run_opp)
+            if swap_supported:
+                back_run_opp = await self._analyze_back_running(analysis)
+                if back_run_opp:
+                    opportunities.append(back_run_opp)
 
             # Arbitrage opportunities
-            if analysis["target_dex"]:
+            if swap_supported:
                 arb_opp = await self._analyze_arbitrage_opportunity(analysis)
                 if arb_opp:
                     opportunities.append(arb_opp)
@@ -391,6 +507,16 @@ class TxPoolScanner:
             for opp in opportunities:
                 opp.setdefault("simulated", False)
                 opp.setdefault("chain_id", self._chain_id)
+                if swap_supported:
+                    opp.setdefault("dex", analysis.get("target_dex"))
+                    opp.setdefault("path", analysis.get("swap_path"))
+                    opp.setdefault("amount_in", analysis.get("amount_in"))
+                    if analysis.get("pool_fee") is not None:
+                        opp.setdefault("fee", analysis.get("pool_fee"))
+                    if analysis.get("amount_out_min"):
+                        opp.setdefault(
+                            "expected_amount_out", analysis.get("amount_out_min")
+                        )
 
             # Rate-limit dispatch: keep top 3 by estimated_profit_eth
             opportunities = sorted(
@@ -428,6 +554,8 @@ class TxPoolScanner:
             "strategy_type": "front_run",
             "target_tx": analysis,
             "estimated_profit_eth": potential_profit,
+            "expected_profit_eth": potential_profit,
+            "profit_potential": potential_profit,
             "confidence": min(analysis["priority_score"], 1.0),
             "gas_price_multiplier": 1.2,  # 20% higher gas for priority
             "execution_deadline": datetime.now() + timedelta(seconds=30),
@@ -452,6 +580,8 @@ class TxPoolScanner:
             "strategy_type": "back_run",
             "target_tx": analysis,
             "estimated_profit_eth": potential_arbitrage,
+            "expected_profit_eth": potential_arbitrage,
+            "profit_potential": potential_arbitrage,
             "confidence": 0.6,
             "wait_for_confirmation": True,
             "execution_deadline": datetime.now() + timedelta(minutes=2),
@@ -489,12 +619,12 @@ class TxPoolScanner:
             else:
                 # Parse swap parameters for better analysis
                 try:
-                    from eth_abi import decode_abi
+                    import eth_abi
 
                     # Decode based on function type
                     if func_selector == "0x38ed1739":  # swapExactTokensForTokens
                         # (uint amountIn, uint amountOutMin, address[] path, address to, uint deadline)
-                        decoded = decode_abi(
+                        decoded = eth_abi.decode(
                             ["uint256", "uint256", "address[]", "address", "uint256"],
                             bytes.fromhex(tx_input[10:]),
                         )
@@ -530,6 +660,8 @@ class TxPoolScanner:
             "strategy_type": "arbitrage",
             "dex": analysis["target_dex"],
             "estimated_profit_eth": estimated_price_impact * 0.8,
+            "expected_profit_eth": estimated_price_impact * 0.8,
+            "profit_potential": estimated_price_impact * 0.8,
             "confidence": 0.7,
             "requires_flash_loan": analysis["value_eth"] > 10.0,
         }

@@ -324,7 +324,7 @@ class TransactionManager:
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": method,
-                "params": [raw_tx.hex()],
+                "params": [self._format_raw_tx(raw_tx)],
             }
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -371,7 +371,7 @@ class TransactionManager:
             "method": "eth_sendBundle",
             "params": [
                 {
-                    "txs": [tx.hex() for tx in raw_txs],
+                    "txs": [self._format_raw_tx(tx) for tx in raw_txs],
                     "blockNumber": hex(target_block),
                     "minTimestamp": now,
                     "maxTimestamp": now + self._bundle_timeout_seconds,
@@ -455,6 +455,12 @@ class TransactionManager:
 
         self._bundle_signer_key = key
         return self._bundle_signer_account
+
+    @staticmethod
+    def _format_raw_tx(raw_tx: bytes) -> str:
+        """Ensure raw transaction hex is 0x-prefixed for JSON-RPC payloads."""
+        hex_str = raw_tx.hex()
+        return hex_str if hex_str.startswith("0x") else f"0x{hex_str}"
 
     async def execute_and_confirm(
         self,
@@ -744,6 +750,26 @@ class TransactionManager:
 
         return resolved_path
 
+    @staticmethod
+    def _encode_uniswap_v3_path(tokens: List[str], fees: List[int]) -> bytes:
+        """Encode Uniswap V3 path bytes from token addresses and fee tiers."""
+        if len(tokens) != len(fees) + 1:
+            raise StrategyExecutionError(
+                "Uniswap V3 path requires fees for each hop (len(tokens) = len(fees) + 1)."
+            )
+
+        encoded = b""
+        for idx, fee in enumerate(fees):
+            if fee < 0 or fee >= 2**24:
+                raise StrategyExecutionError(
+                    f"Invalid Uniswap V3 fee tier: {fee}. Must fit uint24."
+                )
+            token = tokens[idx]
+            encoded += bytes.fromhex(token[2:])
+            encoded += int(fee).to_bytes(3, "big")
+        encoded += bytes.fromhex(tokens[-1][2:])
+        return encoded
+
     async def _calculate_amounts_with_slippage(
         self, opportunity: Dict[str, Any], expected_amount_out: Optional[int] = None
     ) -> Tuple[int, int]:
@@ -810,6 +836,10 @@ class TransactionManager:
                 )
 
         dex_name = opportunity.get("dex", "uniswap")
+        if dex_name in {"uniswap_v3", "uniswapv3", "v3"}:
+            return await self._execute_swap_v3(
+                opportunity, strategy_name, simulate_only
+            )
         dex_contract = await self._get_dex_contract(dex_name)
 
         # Normalize path to checksum addresses for web3 compatibility
@@ -888,6 +918,107 @@ class TransactionManager:
             return {"success": True, "simulated": True}
 
         # Override gas price if specified
+        if opportunity.get("gas_price_wei"):
+            tx_params["gasPrice"] = Wei(opportunity["gas_price_wei"])
+        elif opportunity.get("optimal_gas_price"):
+            tx_params["gasPrice"] = self._web3.to_wei(
+                opportunity["optimal_gas_price"], "gwei"
+            )
+
+        expected_profit = opportunity.get("expected_profit_eth", 0)
+        return await self.execute_and_confirm(
+            tx_params,
+            strategy_name,
+            Decimal(str(expected_profit)) if expected_profit else None,
+        )
+
+    async def _execute_swap_v3(
+        self, opportunity: Dict[str, Any], strategy_name: str, simulate_only: bool
+    ) -> Dict[str, Any]:
+        """Execute Uniswap V3 swap using exactInput or exactInputSingle."""
+        dex_contract = await self._get_dex_contract("uniswap_v3")
+
+        raw_path = await self._get_swap_path(opportunity)
+        path = [self._web3.to_checksum_address(addr) for addr in raw_path]
+
+        expected_out = opportunity.get("expected_amount_out") or opportunity.get(
+            "amount_out_min"
+        )
+        if not expected_out or expected_out <= 0:
+            raise StrategyExecutionError(
+                "Uniswap V3 requires expected_amount_out/amount_out_min for slippage protection."
+            )
+
+        amount_in, amount_out_min = await self._calculate_amounts_with_slippage(
+            opportunity, expected_amount_out=expected_out
+        )
+
+        deadline = int(time.time()) + 300
+        sqrt_price_limit = int(opportunity.get("sqrt_price_limit_x96", 0))
+
+        wrapped_native = self._get_wrapped_native_address()
+        token_in = path[0].lower()
+        value = Wei(amount_in) if token_in == wrapped_native else Wei(0)
+
+        if token_in != wrapped_native:
+            allowance = await self._get_token_allowance(path[0], dex_contract.address)
+            if allowance < amount_in:
+                raise StrategyExecutionError(
+                    f"Token allowance too low for spender {dex_contract.address}: {allowance} < {amount_in}"
+                )
+
+        if len(path) == 2:
+            fee = opportunity.get("fee") or opportunity.get("pool_fee")
+            if fee is None:
+                raise StrategyExecutionError(
+                    "Uniswap V3 single-hop swaps require fee or pool_fee."
+                )
+            params = (
+                path[0],
+                path[1],
+                int(fee),
+                self._address,
+                deadline,
+                amount_in,
+                amount_out_min,
+                sqrt_price_limit,
+            )
+            function_call = dex_contract.functions.exactInputSingle(params)
+        else:
+            fees = opportunity.get("fees")
+            if not fees:
+                raise StrategyExecutionError(
+                    "Uniswap V3 multi-hop swaps require fees list."
+                )
+            path_bytes = self._encode_uniswap_v3_path(path, [int(f) for f in fees])
+            params = (
+                path_bytes,
+                self._address,
+                deadline,
+                amount_in,
+                amount_out_min,
+            )
+            function_call = dex_contract.functions.exactInput(params)
+
+        tx_data = function_call.build_transaction(
+            {
+                "from": self._address,
+                "value": value,
+                "gas": settings.default_gas_limit,
+            }
+        )["data"]
+
+        tx_params = await self._build_transaction(
+            to=dex_contract.address, data=tx_data, value=value
+        )
+
+        if not opportunity.get("simulated", False):
+            await self._simulate_transaction(tx_params)
+            opportunity["simulated"] = True
+
+        if simulate_only:
+            return {"success": True, "simulated": True}
+
         if opportunity.get("gas_price_wei"):
             tx_params["gasPrice"] = Wei(opportunity["gas_price_wei"])
         elif opportunity.get("optimal_gas_price"):

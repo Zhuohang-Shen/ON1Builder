@@ -41,3 +41,43 @@ async def test_check_system_health_flags_unhealthy_and_low_balance(monkeypatch):
 
     # Expect at least one alert (unresponsive worker or low ETH)
     assert orch._send_alert.await_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_main_orchestrator_startup_avoids_blocking_sleep(monkeypatch):
+    def _raise_sleep(_):
+        raise AssertionError("time.sleep should not be called during startup")
+
+    stub_manager = SimpleNamespace(get_config=lambda: SimpleNamespace(chains=[1]))
+
+    monkeypatch.setattr(
+        "on1builder.core.main_orchestrator.get_config_manager",
+        lambda: stub_manager,
+    )
+    monkeypatch.setattr(
+        "on1builder.core.main_orchestrator.initialize_global_config", lambda: None
+    )
+    monkeypatch.setattr(
+        "on1builder.core.main_orchestrator.NotificationService",
+        lambda: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        "on1builder.core.main_orchestrator.DatabaseInterface",
+        lambda: SimpleNamespace(),
+    )
+    monkeypatch.setattr("on1builder.core.main_orchestrator.time.sleep", _raise_sleep)
+
+    orch = MainOrchestrator()
+    orch._initialize_database = AsyncMock()
+    orch._initialize_workers = AsyncMock()
+    orch._start_services = AsyncMock()
+    orch._send_alert = AsyncMock()
+    orch._shutdown = AsyncMock()
+    orch._shutdown_event.set()
+
+    monkeypatch.setattr(
+        "on1builder.core.main_orchestrator.asyncio.sleep",
+        AsyncMock(return_value=None),
+    )
+
+    await orch.run()

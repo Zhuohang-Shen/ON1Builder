@@ -50,7 +50,7 @@ class Transaction(Base):
     timestamp = Column(DateTime, default=utcnow, nullable=False, index=True)
     raw_tx = Column(Text, nullable=True)
 
-    # ON1Builder tracking fields
+    # - tracking fields
     execution_time_s = Column(Float, nullable=True)  # Execution time in seconds
     nonce = Column(BigInteger, nullable=True)
     max_fee_per_gas = Column(BigInteger, nullable=True)  # EIP-1559

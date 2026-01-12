@@ -86,7 +86,9 @@ class Web3ConnectionFactory:
         settings = get_settings()
 
         # Try WebSocket first if available
-        ws_url = settings.websocket_urls.get(chain_id)
+        ws_url = settings.websocket_urls.get(chain_id) or settings.websocket_urls.get(
+            str(chain_id)
+        )
         if ws_url and WEBSOCKET_AVAILABLE:
             try:
                 web3 = await cls._create_websocket_connection(chain_id, ws_url)
@@ -99,7 +101,9 @@ class Web3ConnectionFactory:
                 logger.warning(f"WebSocket connection failed for chain {chain_id}: {e}")
 
         # Fallback to HTTP
-        http_url = settings.rpc_urls.get(chain_id)
+        http_url = settings.rpc_urls.get(chain_id) or settings.rpc_urls.get(
+            str(chain_id)
+        )
         if not http_url:
             raise ConnectionError(
                 f"No RPC URL configured for chain {chain_id}", chain_id=chain_id

@@ -54,7 +54,6 @@ class MainOrchestrator:
         self._error_count = 0
         self._max_consecutive_errors = 5
         logger.debug("MainOrchestrator initialized successfully")
-        time.sleep(2)  # Small delay to ensure proper startup logging
 
     async def _setup_signal_handlers(self):
         """Sets up signal handlers for graceful shutdown."""
@@ -94,7 +93,7 @@ class MainOrchestrator:
 
         self._is_running = True
         logger.info("Orchestrator initialized!")
-        time.sleep(1)  # Small delay for logging clarity
+        await asyncio.sleep(0)
 
         try:
             await self._setup_signal_handlers()

@@ -64,13 +64,13 @@ class BalanceManager:
         self.balance_tier: str = "unknown"
         self.notification_service = NotificationService()
 
-        # ON1Builder locking and caching
+        # - locking and caching
         self._balance_lock = asyncio.Lock()
         self._token_lock = asyncio.Lock()
         self._last_balance_check = 0
         self._token_balance_cache: Dict[str, Tuple[Decimal, float]] = {}
 
-        # ON1Builder profit tracking with granular metrics
+        # - profit tracking with granular metrics
         self._total_profit: Decimal = Decimal("0")
         self._session_profit: Decimal = Decimal("0")
         self._profit_by_strategy: Dict[str, Decimal] = {}

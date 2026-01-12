@@ -452,6 +452,15 @@ class TestValidateCompleteConfig:
         assert "wallet_address" in result
         assert "chains" in result
 
+    def test_notification_channel_validation(self):
+        """Test invalid notification channels are rejected."""
+        config = {
+            "notifications": {"channels": ["slack", "unknown"], "min_level": "info"}
+        }
+
+        with pytest.raises(ValidationError):
+            validate_complete_config(config)
+
     def test_bundle_signer_key_normalization(self):
         """Test bundle signer key is validated and normalized."""
         config = {"bundle_signer_key": "0x" + "b" * 64}

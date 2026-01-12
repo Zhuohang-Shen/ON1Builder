@@ -29,6 +29,7 @@ class ContractAddressSettings(BaseModel):
     """Manages chain-specific contract addresses, loaded from JSON strings in .env."""
 
     uniswap_v2_router: Dict[str, str] = Field(default_factory=dict)
+    uniswap_v3_router: Dict[str, str] = Field(default_factory=dict)
     sushiswap_router: Dict[str, str] = Field(default_factory=dict)
     aave_v3_pool: Dict[str, str] = Field(default_factory=dict)
     simple_flashloan_contract: Dict[str, str] = Field(default_factory=dict)
@@ -354,7 +355,7 @@ class GlobalSettings(BaseModel):
     connection_retry_count: int = Field(default=5, gt=0)
     connection_retry_delay: float = Field(default=5.0, gt=0)
 
-    # ON1Builder arbitrage settings
+    # - arbitrage settings
     arbitrage_scan_interval: int = Field(default=15, gt=0)
 
     # Performance monitoring

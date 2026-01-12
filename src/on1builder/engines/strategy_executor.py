@@ -31,7 +31,7 @@ class StrategyExecutor:
         self._balance_manager = balance_manager
         self._strategy_weights_path = get_strategy_weights_path()
 
-        # ON1Builder strategy mapping with metadata
+        # - strategy mapping with metadata
         self._strategies: Dict[str, Dict[str, Any]] = {
             "arbitrage": {
                 "functions": [self._tx_manager.execute_arbitrage],
@@ -130,6 +130,21 @@ class StrategyExecutor:
                 num_functions = len(strategy_info["functions"])
                 self._weights[strategy_name] = [1.0 for _ in range(num_functions)]
 
+    def _is_strategy_enabled(self, strategy_name: str) -> bool:
+        """Check global and per-strategy feature flags."""
+        mev_disabled = not settings.mev_strategies_enabled
+        if mev_disabled and strategy_name in {"front_run", "back_run", "sandwich"}:
+            return False
+        if strategy_name == "front_run" and not settings.front_running_enabled:
+            return False
+        if strategy_name == "back_run" and not settings.back_running_enabled:
+            return False
+        if strategy_name == "sandwich" and not settings.sandwich_attacks_enabled:
+            return False
+        if strategy_name == "flashloan_arbitrage" and not settings.flashloan_enabled:
+            return False
+        return True
+
     def _save_weights(self):
         """weight saving with metadata."""
         data = {
@@ -194,6 +209,9 @@ class StrategyExecutor:
         current_rank = tier_rank.get(balance_tier, tier_rank["low"])
 
         for strategy_name, strategy_info in self._strategies.items():
+            if not self._is_strategy_enabled(strategy_name):
+                continue
+
             # Check balance tier requirement
             min_tier = strategy_info["min_balance_tier"]
             min_rank = tier_rank.get(min_tier, 0)
@@ -389,7 +407,7 @@ class StrategyExecutor:
                 "balance_tier": balance_summary["balance_tier"],
             }
 
-        # ON1Builder opportunity with balance-aware parameters
+        # - opportunity with balance-aware parameters
         ON1Builder_opportunity = await self._ON1Builder_opportunity_with_balance(
             opportunity
         )

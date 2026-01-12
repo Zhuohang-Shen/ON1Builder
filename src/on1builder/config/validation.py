@@ -299,7 +299,9 @@ class ConfigValidator:
             )
 
         valid_channels = ["slack", "telegram", "discord", "email"]
-        normalized = [ch.strip() for ch in channels if isinstance(ch, str) and ch.strip()]
+        normalized = [
+            ch.strip() for ch in channels if isinstance(ch, str) and ch.strip()
+        ]
         invalid_channels = [ch for ch in normalized if ch.lower() not in valid_channels]
         if invalid_channels:
             raise ValidationError(
@@ -553,10 +555,15 @@ class ConfigValidator:
                     min_level = getattr(notifications, "min_level", "INFO")
                 self.validate_notification_settings(channels, min_level)
 
-            if "notification_channels" in config_dict or "min_notification_level" in config_dict:
+            if (
+                "notification_channels" in config_dict
+                or "min_notification_level" in config_dict
+            ):
                 raw_channels = config_dict.get("notification_channels", [])
                 if isinstance(raw_channels, str):
-                    channels = [item.strip() for item in raw_channels.split(",") if item.strip()]
+                    channels = [
+                        item.strip() for item in raw_channels.split(",") if item.strip()
+                    ]
                 else:
                     channels = raw_channels or []
                 min_level = config_dict.get("min_notification_level", "INFO")
