@@ -122,6 +122,11 @@ class TestValidateChainIds:
         result = ConfigValidator.validate_chain_ids([5, 80001])
         assert set(result) == {5, 80001}
 
+    def test_base_chain(self):
+        """Test Base chain ID is valid."""
+        result = ConfigValidator.validate_chain_ids([8453])
+        assert result == [8453]
+
 
 class TestValidateRpcUrls:
     """Test RPC URL validation."""

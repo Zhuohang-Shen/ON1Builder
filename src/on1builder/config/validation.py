@@ -27,6 +27,7 @@ class ConfigValidator:
         10: "Optimism",
         56: "BSC",
         43114: "Avalanche",
+        8453: "Base",
         250: "Fantom",
         # Add test networks
         5: "Goerli",

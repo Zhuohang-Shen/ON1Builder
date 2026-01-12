@@ -5,11 +5,12 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 from datetime import datetime, timedelta
 import re
 
 from web3 import AsyncWeb3
+from web3.exceptions import TransactionNotFound
 from web3.types import TxData
 
 from on1builder.config.loaders import settings
@@ -38,6 +39,8 @@ class TxPoolScanner:
     MAX_TX_CACHE_SIZE = 1000
     MAX_OPPORTUNITY_CACHE_SIZE = 500
     CACHE_CLEANUP_THRESHOLD = 0.8
+    MEV_LOG_EVERY = 50
+    NOT_FOUND_LOG_EVERY = 50
     SUPPORTED_SWAP_DEXES = {"uniswap_v2", "uniswap_v3", "sushiswap", "pancakeswap"}
 
     def __init__(
@@ -60,6 +63,8 @@ class TxPoolScanner:
         self._pending_tx_count = 0
         self._processed_tx_count = 0
         self._opportunity_count = 0
+        self._mev_log_counter = 0
+        self._not_found_counter = 0
 
         # - caching with size management
         self._tx_analysis_cache: Dict[str, Dict] = {}
@@ -251,14 +256,15 @@ class TxPoolScanner:
 
     async def _process_tx_hash(self, tx_hash: str):
         """transaction processing with comprehensive MEV analysis."""
+        normalized_hash = self._normalize_tx_hash(tx_hash)
         try:
             # Check cache first
-            if tx_hash in self._tx_analysis_cache:
-                self._cache_access_times[tx_hash] = datetime.now()
-                tx_analysis = self._tx_analysis_cache[tx_hash]
+            if normalized_hash in self._tx_analysis_cache:
+                self._cache_access_times[normalized_hash] = datetime.now()
+                tx_analysis = self._tx_analysis_cache[normalized_hash]
                 tx = None  # Don't need full tx data if cached
             else:
-                tx = await self._web3.eth.get_transaction(tx_hash)
+                tx = await self._web3.eth.get_transaction(normalized_hash)
                 if not tx:
                     return
 
@@ -266,8 +272,8 @@ class TxPoolScanner:
                 tx_analysis = self._analyze_transaction_comprehensive(tx)
 
                 # Cache with access time tracking
-                self._tx_analysis_cache[tx_hash] = tx_analysis
-                self._cache_access_times[tx_hash] = datetime.now()
+                self._tx_analysis_cache[normalized_hash] = tx_analysis
+                self._cache_access_times[normalized_hash] = datetime.now()
 
                 # Manage cache size efficiently
                 if len(self._tx_analysis_cache) > self.MAX_TX_CACHE_SIZE:
@@ -276,7 +282,13 @@ class TxPoolScanner:
             self._processed_tx_count += 1
 
             if self._is_relevant_for_mev(tx_analysis):
-                logger.info(f"MEV-relevant transaction detected: {tx_hash}")
+                self._mev_log_counter += 1
+                if self._mev_log_counter % self.MEV_LOG_EVERY == 1:
+                    logger.info(
+                        "MEV-relevant transactions: %s (latest: %s)",
+                        self._mev_log_counter,
+                        normalized_hash,
+                    )
                 opportunities = await self._analyze_for_opportunities(tx_analysis)
 
                 # Pre-execution simulation stage
@@ -291,8 +303,28 @@ class TxPoolScanner:
                     self._opportunity_count += 1
                     await self._strategy_executor.execute_opportunity(opportunity)
 
+        except TransactionNotFound:
+            self._not_found_counter += 1
+            if self._not_found_counter % self.NOT_FOUND_LOG_EVERY == 1:
+                logger.debug(
+                    "Pending transaction not found (%s). Latest: %s",
+                    self._not_found_counter,
+                    normalized_hash,
+                )
         except Exception as e:
-            logger.debug(f"Could not process transaction {tx_hash}: {e}")
+            logger.debug("Could not process transaction %s: %s", tx_hash, e)
+
+    @staticmethod
+    def _normalize_tx_hash(tx_hash: Any) -> str:
+        """Normalize tx hashes to 0x-prefixed hex strings for cache/logging."""
+        if isinstance(tx_hash, (bytes, bytearray)):
+            return f"0x{tx_hash.hex()}"
+        if hasattr(tx_hash, "hex") and not isinstance(tx_hash, str):
+            value = tx_hash.hex()
+            return value if value.startswith("0x") else f"0x{value}"
+        if isinstance(tx_hash, str):
+            return tx_hash if tx_hash.startswith("0x") else f"0x{tx_hash}"
+        return str(tx_hash)
 
     def _analyze_transaction_comprehensive(self, tx: TxData) -> Dict[str, Any]:
         """Performs comprehensive analysis of a transaction for MEV opportunities."""
@@ -326,6 +358,7 @@ class TxPoolScanner:
             "amount_in": None,
             "amount_out_min": None,
             "pool_fee": None,
+            "fees": None,
         }
 
         # Analyze target address efficiently
@@ -354,6 +387,7 @@ class TxPoolScanner:
                     "amount_in": swap_params.get("amount_in"),
                     "amount_out_min": swap_params.get("amount_out_min"),
                     "pool_fee": swap_params.get("pool_fee"),
+                    "fees": swap_params.get("fees"),
                 }
             )
 
@@ -417,6 +451,10 @@ class TxPoolScanner:
                 "v3_exact_input_single",
                 ["(address,address,uint24,address,uint256,uint256,uint256,uint160)"],
             ),
+            "0xc04b8d59": (
+                "v3_exact_input",
+                ["(bytes,address,uint256,uint256,uint256)"],
+            ),
         }
 
         if func_selector not in swap_selectors:
@@ -443,6 +481,20 @@ class TxPoolScanner:
                     "amount_out_min": amount_out_min,
                     "pool_fee": fee,
                 }
+            if kind == "v3_exact_input":
+                params = decoded[0]
+                path_bytes = params[0]
+                amount_in = int(params[3])
+                amount_out_min = int(params[4])
+                tokens, fees = self._decode_uniswap_v3_path(path_bytes)
+                if not tokens or not fees:
+                    return {}
+                return {
+                    "path": tokens,
+                    "fees": fees,
+                    "amount_in": amount_in,
+                    "amount_out_min": amount_out_min,
+                }
             if kind == "eth_exact_in":
                 amount_out_min = int(decoded[0])
                 path = list(decoded[1])
@@ -463,17 +515,43 @@ class TxPoolScanner:
         except Exception:
             return {}
 
+    @staticmethod
+    def _decode_uniswap_v3_path(path_bytes: bytes) -> Tuple[List[str], List[int]]:
+        """Decode Uniswap V3 path bytes into token addresses and fee tiers."""
+        if not path_bytes or len(path_bytes) < 43:
+            return [], []
+
+        tokens: List[str] = []
+        fees: List[int] = []
+        offset = 0
+        tokens.append("0x" + path_bytes[offset : offset + 20].hex())
+        offset += 20
+
+        while offset < len(path_bytes):
+            if offset + 3 > len(path_bytes):
+                return [], []
+            fee = int.from_bytes(path_bytes[offset : offset + 3], "big")
+            fees.append(fee)
+            offset += 3
+            if offset + 20 > len(path_bytes):
+                return [], []
+            tokens.append("0x" + path_bytes[offset : offset + 20].hex())
+            offset += 20
+
+        return tokens, fees
+
     async def _analyze_for_opportunities(
         self, analysis: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """Analyzes transaction for specific MEV opportunities."""
         opportunities = []
         target_dex = analysis.get("target_dex")
+        v3_fee_ok = analysis.get("pool_fee") is not None or analysis.get("fees")
         swap_supported = (
             target_dex in self.SUPPORTED_SWAP_DEXES
             and analysis.get("swap_path")
             and analysis.get("amount_in")
-            and (target_dex != "uniswap_v3" or analysis.get("pool_fee") is not None)
+            and (target_dex != "uniswap_v3" or v3_fee_ok)
         )
 
         try:
@@ -513,10 +591,14 @@ class TxPoolScanner:
                     opp.setdefault("amount_in", analysis.get("amount_in"))
                     if analysis.get("pool_fee") is not None:
                         opp.setdefault("fee", analysis.get("pool_fee"))
+                    if analysis.get("fees"):
+                        opp.setdefault("fees", analysis.get("fees"))
                     if analysis.get("amount_out_min"):
                         opp.setdefault(
                             "expected_amount_out", analysis.get("amount_out_min")
                         )
+                if opp.get("estimated_profit_eth") is not None:
+                    opp.setdefault("expected_profit_eth", opp.get("estimated_profit_eth"))
 
             # Rate-limit dispatch: keep top 3 by estimated_profit_eth
             opportunities = sorted(

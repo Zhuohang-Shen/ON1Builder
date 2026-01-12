@@ -81,3 +81,44 @@ async def test_main_orchestrator_startup_avoids_blocking_sleep(monkeypatch):
     )
 
     await orch.run()
+
+
+@pytest.mark.asyncio
+async def test_main_orchestrator_memory_optimizer_lifecycle(monkeypatch):
+    orch = MainOrchestrator.__new__(MainOrchestrator)
+    orch._workers = []
+    orch._balance_managers = {}
+    orch._multi_chain_orchestrator = None
+    orch._performance_monitor_task = None
+    orch._db_interface = None
+    orch._notification_service = None
+    orch._shutdown_event = asyncio.Event()
+    orch._is_running = False
+
+    init_memory = AsyncMock()
+    cleanup_memory = AsyncMock()
+    monkeypatch.setattr(
+        "on1builder.core.main_orchestrator.initialize_memory_optimization",
+        init_memory,
+    )
+    monkeypatch.setattr(
+        "on1builder.core.main_orchestrator.cleanup_memory_optimization",
+        cleanup_memory,
+    )
+
+    orch._performance_monitor_loop = AsyncMock()
+    await orch._start_services()
+    init_memory.assert_awaited_once()
+
+    orch._generate_final_report = AsyncMock()
+    monkeypatch.setattr(
+        "on1builder.core.main_orchestrator.ExternalAPIManager",
+        lambda: SimpleNamespace(close=AsyncMock()),
+    )
+    monkeypatch.setattr(
+        "on1builder.core.main_orchestrator.Web3ConnectionFactory.close_all_connections",
+        AsyncMock(),
+    )
+
+    await orch._shutdown()
+    cleanup_memory.assert_awaited_once()

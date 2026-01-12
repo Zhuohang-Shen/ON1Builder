@@ -75,7 +75,7 @@ class NotificationSettings(BaseModel):
     @field_validator("channels", mode="before")
     def split_str(cls, v):
         if isinstance(v, str):
-            return [item.strip() for item in v.split(",")]
+            return [item.strip() for item in v.split(",") if item.strip()]
         return v
 
 
@@ -290,12 +290,24 @@ class GlobalSettings(BaseModel):
     )
     fallback_gas_price_gwei: int = Field(default=50, gt=0)
     min_wallet_balance: float = Field(default=0.05, ge=0)
+    allow_insufficient_funds_tests: bool = Field(
+        default=False,
+        description="Bypass local balance checks for startup test transactions.",
+    )
+    startup_test_transaction: bool = Field(
+        default=False,
+        description="Attempt a startup test transaction for diagnostics.",
+    )
 
     # Strategy & Profit - ON1Builder with dynamic thresholds
     min_profit_eth: float = Field(default=0.005, ge=0)
     min_profit_percentage: float = Field(
         default=0.1, ge=0
     )  # Minimum profit as % of investment
+    profit_analysis_enabled: bool = Field(
+        default=False,
+        description="Enable detailed post-trade profit analysis (extra RPC/API calls).",
+    )
     dynamic_profit_scaling: bool = Field(
         default=True
     )  # Scale profit requirements based on balance
@@ -384,6 +396,14 @@ class GlobalSettings(BaseModel):
     # Cross-chain settings
     cross_chain_enabled: bool = Field(default=True)
     bridge_monitoring_enabled: bool = Field(default=True)
+
+    # Oracle feeds (chain_id -> symbol -> feed address)
+    oracle_feeds: Dict[str, Dict[str, str]] = Field(default_factory=dict)
+    oracle_stale_seconds: int = Field(
+        default=3600,
+        gt=0,
+        description="Max age in seconds for oracle prices before treating as stale.",
+    )
 
     # Nested Settings Models
     api: APISettings = Field(default_factory=APISettings)

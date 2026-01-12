@@ -16,6 +16,16 @@ class DummyWeb3:
         self.eth = SimpleNamespace()
 
 
+class DummyWeb3AsyncChain:
+    def __init__(self):
+        self.eth = SimpleNamespace()
+
+        async def chain_id():
+            return 137
+
+        self.eth.chain_id = chain_id
+
+
 @pytest.fixture(autouse=True)
 def stub_settings(monkeypatch):
     stub = SimpleNamespace(
@@ -72,3 +82,10 @@ async def test_should_avoid_trading_based_on_volatility(monkeypatch):
     feed._volatility_cache["ETH_60m"] = 0.2  # high volatility
     feed._market_sentiment["ETH"] = 0.0
     assert await feed.should_avoid_trading("ETH") is True
+
+
+@pytest.mark.asyncio
+async def test_resolve_chain_id_awaits_async_property():
+    feed = MarketDataFeed(DummyWeb3AsyncChain())
+    resolved = await feed._resolve_chain_id()
+    assert resolved == 137

@@ -35,6 +35,7 @@ from on1builder.utils.custom_exceptions import (
     StrategyExecutionError,
     TransactionError,
 )
+from on1builder.utils.error_recovery import get_error_recovery_manager
 from on1builder.utils.logging_config import get_logger
 from on1builder.utils.notification_service import NotificationService
 from on1builder.utils.gas_optimizer import GasOptimizer
@@ -159,9 +160,12 @@ class TransactionManager:
             if should_proceed:
                 tx_params["gasPrice"] = self._web3.to_wei(optimal_gas_gwei, "gwei")
             else:
-                raise InsufficientFundsError(
-                    "Gas price too high relative to expected profit"
-                )
+                if getattr(settings, "allow_insufficient_funds_tests", False):
+                    tx_params["gasPrice"] = await self._web3.eth.gas_price
+                else:
+                    raise InsufficientFundsError(
+                        "Gas price too high relative to expected profit"
+                    )
         else:
             tx_params["gasPrice"] = await self._web3.eth.gas_price
 
@@ -196,25 +200,27 @@ class TransactionManager:
             raise StrategyExecutionError(f"Safety check failed: {reason}")
 
         # Additional balance check
-        max_cost = tx_params.get("value", 0) + (
-            tx_params.get("gas", 0) * tx_params.get("gasPrice", 0)
-        )
-        current_balance = await self._balance_manager.update_balance()
-        balance_wei = self._web3.to_wei(current_balance, "ether")
-
-        if max_cost > balance_wei:
-            raise InsufficientFundsError(
-                f"Insufficient balance for transaction. Required: {max_cost}, Available: {balance_wei}"
+        if not getattr(settings, "allow_insufficient_funds_tests", False):
+            max_cost = tx_params.get("value", 0) + (
+                tx_params.get("gas", 0) * tx_params.get("gasPrice", 0)
             )
+            current_balance = await self._balance_manager.update_balance()
+            balance_wei = self._web3.to_wei(current_balance, "ether")
+
+            if max_cost > balance_wei:
+                raise InsufficientFundsError(
+                    f"Insufficient balance for transaction. Required: {max_cost}, Available: {balance_wei}"
+                )
 
         logger.debug(f"Signing transaction for nonce {tx_params['nonce']}.")
         signed_tx: SignedTransaction = self._account.sign_transaction(tx_params)
+        raw_tx = self._get_raw_transaction_bytes(signed_tx)
 
         for attempt in range(settings.transaction_retry_count):
             try:
                 if settings.submission_mode == "public":
                     tx_hash = await self._web3.eth.send_raw_transaction(
-                        signed_tx.rawTransaction
+                        raw_tx
                     )
                     logger.info(f"Transaction sent: {tx_hash.hex()}")
                     return tx_hash.hex()
@@ -223,9 +229,7 @@ class TransactionManager:
                         raise StrategyExecutionError(
                             "submission_mode is private but no private_rpc_url configured"
                         )
-                    tx_hash_hex = await self._send_private_transaction(
-                        signed_tx.rawTransaction
-                    )
+                    tx_hash_hex = await self._send_private_transaction(raw_tx)
                     logger.info(f"Private transaction sent: {tx_hash_hex}")
                     return tx_hash_hex
                 elif settings.submission_mode == "bundle":
@@ -234,7 +238,7 @@ class TransactionManager:
                             "submission_mode is bundle but no bundle_relay_url configured"
                         )
                     tx_hash_hex = signed_tx.hash.hex()
-                    bundle_hash = await self._send_bundle([signed_tx.rawTransaction])
+                    bundle_hash = await self._send_bundle([raw_tx])
                     self._last_bundle_hash = bundle_hash
                     logger.info(
                         "Bundle submitted: %s (tx: %s)", bundle_hash, tx_hash_hex
@@ -272,6 +276,7 @@ class TransactionManager:
                         )
                     tx_params["gasPrice"] = bumped
                     signed_tx = self._account.sign_transaction(tx_params)
+                    raw_tx = self._get_raw_transaction_bytes(signed_tx)
                     logger.info(
                         f"Gas price bumped to {bumped} wei due to underpriced replacement."
                     )
@@ -462,11 +467,23 @@ class TransactionManager:
         hex_str = raw_tx.hex()
         return hex_str if hex_str.startswith("0x") else f"0x{hex_str}"
 
+    @staticmethod
+    def _get_raw_transaction_bytes(signed_tx: SignedTransaction) -> bytes:
+        raw_tx = getattr(signed_tx, "rawTransaction", None)
+        if raw_tx is None:
+            raw_tx = getattr(signed_tx, "raw_transaction", None)
+        if raw_tx is None:
+            raise StrategyExecutionError(
+                "Signed transaction missing raw transaction bytes."
+            )
+        return raw_tx
+
     async def execute_and_confirm(
         self,
         tx_params: TxParams,
         strategy_name: str,
         expected_profit: Optional[Decimal] = None,
+        allow_recovery_retry: bool = True,
     ) -> Dict[str, Any]:
         """execution with profit tracking and comprehensive logging."""
 
@@ -476,6 +493,10 @@ class TransactionManager:
         try:
             # Pre-execution balance
             pre_balance = await self._balance_manager.update_balance()
+
+            if expected_profit is not None:
+                tx_params = dict(tx_params)
+                tx_params["expected_profit_eth"] = float(expected_profit)
 
             tx_hash = await self._sign_and_send(tx_params)
             receipt = await self.wait_for_receipt(tx_hash)
@@ -538,6 +559,21 @@ class TransactionManager:
                     Decimal(str(actual_profit_eth)), strategy_name
                 )
 
+            profit_analysis = None
+            if getattr(settings, "profit_analysis_enabled", False):
+                try:
+                    profit_calculator = getattr(self, "_profit_calculator", None)
+                    if profit_calculator is None:
+                        profit_calculator = ProfitCalculator(self._web3)
+                        self._profit_calculator = profit_calculator
+                    profit_analysis = (
+                        await profit_calculator.calculate_transaction_profit(
+                            tx_hash, strategy_name
+                        )
+                    )
+                except Exception as exc:
+                    logger.debug("Profit analysis failed: %s", exc)
+
             result = {
                 "success": status,
                 "tx_hash": tx_hash,
@@ -549,6 +585,7 @@ class TransactionManager:
                 "pre_balance": float(pre_balance),
                 "post_balance": float(post_balance),
                 "strategy": strategy_name,
+                "profit_analysis": profit_analysis,
             }
 
             # Send notification for significant profits or failures
@@ -575,6 +612,35 @@ class TransactionManager:
             InsufficientFundsError,
             ConnectionError,
         ) as e:
+            try:
+                recovery_manager = get_error_recovery_manager()
+                recovery_context = {
+                    "chain_id": self._chain_id,
+                    "strategy": strategy_name,
+                    "tx_params": tx_params,
+                    "retry_tx_params": dict(tx_params),
+                    "transaction_manager": self,
+                }
+                await recovery_manager.handle_error(
+                    e,
+                    recovery_context,
+                    "TransactionManager",
+                )
+                if allow_recovery_retry and recovery_context.get("retry"):
+                    retry_params = recovery_context.get("retry_tx_params")
+                    if retry_params:
+                        return await self.execute_and_confirm(
+                            retry_params,
+                            strategy_name,
+                            expected_profit,
+                            allow_recovery_retry=False,
+                        )
+            except Exception as recovery_exc:
+                logger.debug(
+                    "Error recovery handling failed: %s",
+                    recovery_exc,
+                    exc_info=True,
+                )
             logger.error(f"Execution failed for strategy '{strategy_name}': {e}")
             await self._notification_service.send_alert(
                 title=f"Strategy '{strategy_name}' Failed",

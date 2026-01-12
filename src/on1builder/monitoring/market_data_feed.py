@@ -43,23 +43,36 @@ class MarketDataFeed:
         self._is_running = False
         self._update_task: Optional[asyncio.Task] = None
         self._analysis_task: Optional[asyncio.Task] = None
-        self.chain_id = self._resolve_chain_id()
+        self.chain_id = self._fallback_chain_id()
         logger.debug("MarketDataFeed initialized.")
 
-    def _resolve_chain_id(self) -> int:
+    def _fallback_chain_id(self) -> int:
+        fallback = getattr(settings, "chains", None) or []
+        return int(fallback[0]) if fallback else 0
+
+    async def _resolve_chain_id(self) -> int:
         """Best-effort chain ID resolution for logging/telemetry."""
         chain_id = None
         try:
             eth = getattr(self._web3, "eth", None)
-            chain_id = getattr(eth, "chain_id", None)
+            chain_attr = getattr(eth, "chain_id", None)
+            if asyncio.iscoroutine(chain_attr):
+                chain_id = await chain_attr
+            elif callable(chain_attr):
+                resolved = chain_attr()
+                if asyncio.iscoroutine(resolved):
+                    chain_id = await resolved
+                else:
+                    chain_id = resolved
+            else:
+                chain_id = chain_attr
         except Exception:
             chain_id = None
 
         try:
             return int(chain_id)
         except Exception:
-            fallback = getattr(settings, "chains", None) or []
-            return int(fallback[0]) if fallback else 0
+            return self._fallback_chain_id()
 
     async def start(self):
         if self._is_running:
@@ -67,6 +80,7 @@ class MarketDataFeed:
             return
 
         self._is_running = True
+        self.chain_id = await self._resolve_chain_id()
         logger.info(f"[Chain {self.chain_id}] Market Data Feed initialized")
         self._update_task = asyncio.create_task(self._update_loop())
         self._analysis_task = asyncio.create_task(self._analysis_loop())

@@ -22,6 +22,10 @@ from on1builder.utils.web3_factory import Web3ConnectionFactory
 from on1builder.utils.web3_factory import create_web3_instance
 from on1builder.utils.error_recovery import get_error_recovery_manager
 from on1builder.utils.constants import PERFORMANCE_MONITORING_INTERVAL
+from on1builder.utils.memory_optimizer import (
+    initialize_memory_optimization,
+    cleanup_memory_optimization,
+)
 from on1builder.persistence.db_interface import DatabaseInterface
 from on1builder.integrations.external_apis import ExternalAPIManager
 
@@ -196,6 +200,9 @@ class MainOrchestrator:
             self._performance_monitor_loop()
         )
 
+        # Start memory monitoring
+        await initialize_memory_optimization()
+
     def _get_startup_details(self) -> Dict[str, Any]:
         """Get startup details for notifications."""
         return {
@@ -301,6 +308,12 @@ class MainOrchestrator:
             await Web3ConnectionFactory.close_all_connections()
         except Exception as exc:
             logger.debug("Web3 connection cleanup raised: %s", exc, exc_info=True)
+
+        logger.info("Stopping memory optimization...")
+        try:
+            await cleanup_memory_optimization()
+        except Exception as exc:
+            logger.debug("Memory optimizer cleanup raised: %s", exc, exc_info=True)
 
         logger.info("ON1Builder has been shut down gracefully.")
 

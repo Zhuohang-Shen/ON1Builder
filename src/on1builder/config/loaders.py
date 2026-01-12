@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -91,11 +92,18 @@ class _EnvSettings(BaseSettings):
     )
     bundle_target_block_offset: int = 1
     bundle_timeout_seconds: int = 30
+    allow_insufficient_funds_tests: bool = Field(
+        False, alias="ALLOW_INSUFFICIENT_FUNDS_TESTS"
+    )
+    startup_test_transaction: bool = Field(
+        False, alias="STARTUP_TEST_TRANSACTION"
+    )
 
     # Balance and profit settings
     min_wallet_balance: float = 0.05
     min_profit_eth: float = 0.005
     min_profit_percentage: float = 0.1
+    profit_analysis_enabled: bool = False
     dynamic_profit_scaling: bool = True
     balance_risk_ratio: float = 0.3
     slippage_tolerance: float = 0.5
@@ -186,6 +194,25 @@ class _EnvSettings(BaseSettings):
     database_url: str = Field(
         "sqlite+aiosqlite:///on1builder_data.db", alias="DATABASE_URL"
     )
+
+    oracle_feeds: str = Field("{}", alias="ORACLE_FEEDS")
+    oracle_stale_seconds: int = Field(3600, alias="ORACLE_STALE_SECONDS")
+
+
+def _parse_json_env(value: Any, default: Any) -> Any:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return default
+        if stripped.startswith("{"):
+            try:
+                return json.loads(stripped)
+            except json.JSONDecodeError:
+                logger.warning("Invalid JSON for ORACLE_FEEDS; using defaults.")
+                return default
+    return default
 
 
 def _gather_dynamic_env_vars() -> Dict[str, Any]:
@@ -282,6 +309,9 @@ def load_settings(env_path: Optional[Path] = None) -> GlobalSettings:
     # Gather all static and dynamic data
     final_config_data = env_settings.model_dump()
     final_config_data.update(_gather_dynamic_env_vars())
+    final_config_data["oracle_feeds"] = _parse_json_env(
+        env_settings.oracle_feeds, {}
+    )
 
     # Populate nested models
     final_config_data["api"] = api_settings

@@ -160,28 +160,62 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         self._token_mappings: Dict[str, TokenMapping] = {}
         self._all_tokens_loaded = False  # Track if we've loaded all tokens yet
         self._all_tokens_load_time = 0  # Timestamp of last full token load
+        self._all_tokens_loading = False
         self._failed_tokens: Set[str] = set()
         self._provider_backoff: Dict[str, float] = {}
         self._onchain_web3: Optional[Any] = None
+        self._last_block_timestamp: Optional[int] = None
+        self._last_block_ts_refresh: float = 0.0
         self._primary_chain_id: int = (
             settings.chains[0] if getattr(settings, "chains", None) else 1
         )
-        self._oracle_feeds = {
-            "ETH": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
-            "BTC": "0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c",
-            "LINK": "0x2c1d072e956AFFC0D435Cb7AC38EF18d24d9127c",
-            "USDC": "0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6",
-            "USDT": "0x3E7d1eAB13ad0104d2750B8863b489D65364e32D",
-            "DAI": "0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9",
-            "AAVE": "0x547a514d5e3769680Ce22B2361c10Ea13619e8a9",
-            "UNI": "0x553303d460EE0afB37EdFf9bE42922D8FF63220e",
-            "MKR": "0xec1D1B3b0443256cc3860e24a46F108e699484Aa",
-            "COMP": "0xdbd020CAeF83eFd542f4De03e3cF0C28A4428bd5",
-            "SNX": "0xdc3ea94cd0ac27d9a86c180091e7f78c683d3699",
-            "CRV": "0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f",
-            "STETH": "0xCfE54B5cD566aB89272946F602D76Ea879CAb4a8",
-            "WBTC": "0xfdFD9C85aD200c506Cf9e21F1FD8dd01932FBB23",
+        default_oracle_feeds_by_chain: Dict[int, Dict[str, str]] = {
+            1: {
+                "ETH": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+                "BTC": "0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c",
+                "LINK": "0x2c1d072e956AFFC0D435Cb7AC38EF18d24d9127c",
+                "USDC": "0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6",
+                "USDT": "0x3E7d1eAB13ad0104d2750B8863b489D65364e32D",
+                "DAI": "0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9",
+                "AAVE": "0x547a514d5e3769680Ce22B2361c10Ea13619e8a9",
+                "UNI": "0x553303d460EE0afB37EdFf9bE42922D8FF63220e",
+                "MKR": "0xec1D1B3b0443256cc3860e24a46F108e699484Aa",
+                "COMP": "0xdbd020CAeF83eFd542f4De03e3cF0C28A4428bd5",
+                "SNX": "0xdc3ea94cd0ac27d9a86c180091e7f78c683d3699",
+                "CRV": "0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f",
+                "STETH": "0xCfE54B5cD566aB89272946F602D76Ea879CAb4a8",
+                "WBTC": "0xfdFD9C85aD200c506Cf9e21F1FD8dd01932FBB23",
+            },
+            10: {
+                "ETH": "0x13e3Ee699D1909E989722E753853AE30b17e08c5",
+                "OP": "0x0D276FC14719f9292D5C1eA2198673d1f4269246",
+            },
+            56: {
+                "BNB": "0x0567F2323251f0Aab15c8dFb1967E4e8A7D42aeE",
+                "ETH": "0x9ef1B8c0E4F7dc8bF5719Ea496883DC6401d5b2e",
+                "BTC": "0x264990fbd0A4796A3E3d8E37C4d5F87a3aCa5Ebf",
+            },
+            137: {
+                "ETH": "0xF9680D99D6C9589e2a93a78A04A279e509205945",
+                "MATIC": "0xAB594600376Ec9fD91F8e885dADF0CE036862dE0",
+                "USDC": "0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7",
+            },
+            42161: {
+                "ETH": "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612",
+                "BTC": "0x6ce185860a4963106506C203335A2910413708e9",
+                "ARB": "0xb2A824043730FE05F3DA2efaFa1CBbe83fa548D6",
+            },
+            8453: {
+                "ETH": "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
+            },
         }
+        self._oracle_feeds_by_chain = {
+            chain_id: dict(feeds)
+            for chain_id, feeds in default_oracle_feeds_by_chain.items()
+        }
+        self._oracle_feeds = self._oracle_feeds_by_chain.get(
+            self._primary_chain_id, {}
+        )
         self._background_tasks: Set[asyncio.Task] = set()
         self._init_lock = asyncio.Lock()
         self._initialized = False
@@ -189,6 +223,7 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         self._health_check_interval = 300  # 5 minutes
         self._closed = False
         self._instance_initialized = True
+        self._load_configured_oracle_feeds()
 
         logger.debug("ExternalAPIManager singleton instance created")
 
@@ -500,11 +535,10 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             current_time = time.time()
             if current_time - self._all_tokens_load_time > 3600:  # 1 hour cooldown
                 logger.debug(
-                    f"Token {token_symbol_upper} not found in well-known tokens, loading all tokens..."
+                    f"Token {token_symbol_upper} not found in well-known tokens, scheduling token mapping load..."
                 )
-                await self._load_all_tokens_async()
                 self._all_tokens_load_time = current_time
-                token_mapping = self._token_mappings.get(token_symbol_upper)
+                self._schedule_all_tokens_load()
             else:
                 logger.debug(
                     f"Token {token_symbol_upper} not found, but all tokens loaded recently. Skipping reload."
@@ -552,6 +586,11 @@ class ExternalAPIManager(metaclass=SingletonMeta):
 
         if not tasks:
             logger.debug(f"No healthy providers available for {token_symbol}")
+            oracle_price = await self._get_oracle_price(token_symbol_upper)
+            if oracle_price is not None and oracle_price > 0:
+                self._price_cache[token_symbol_upper] = oracle_price
+                self._failed_tokens.discard(token_symbol_upper)
+                return oracle_price
             return None
 
         # Use asyncio.wait with timeout to prevent blocking
@@ -835,16 +874,45 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             }
         return status
 
+    def _load_configured_oracle_feeds(self) -> None:
+        configured = getattr(settings, "oracle_feeds", None)
+        if not configured:
+            return
+
+        for chain_key, feeds in configured.items():
+            try:
+                chain_id = int(chain_key)
+            except (TypeError, ValueError):
+                logger.debug("Skipping oracle feeds with invalid chain key: %s", chain_key)
+                continue
+
+            if not isinstance(feeds, dict):
+                continue
+
+            normalized = {}
+            for symbol, address in feeds.items():
+                if not isinstance(symbol, str) or not isinstance(address, str):
+                    continue
+                if not address.strip():
+                    continue
+                normalized[symbol.upper()] = address.strip()
+
+            if not normalized:
+                continue
+
+            self._oracle_feeds_by_chain.setdefault(chain_id, {}).update(normalized)
+
     async def _get_oracle_price(self, token_symbol: str) -> Optional[float]:
         """
         Fetch price from Chainlink oracle on primary chain (ETH mainnet).
         Returns price in USD.
         """
         try:
-            if self._primary_chain_id != 1:
+            symbol = self._normalize_oracle_symbol(token_symbol)
+            feeds = self._oracle_feeds_by_chain.get(self._primary_chain_id, {})
+            if not feeds:
                 return None
-
-            feed_address = self._oracle_feeds.get(token_symbol.upper())
+            feed_address = feeds.get(symbol)
             if not feed_address:
                 return None
 
@@ -897,10 +965,16 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             )
             if answer is None or int(answer) <= 0:
                 return None
-            # basic staleness check: 1 hour
+            # basic staleness check: configurable (default 1 hour)
             import time as _time
 
-            if updated_at and (_time.time() - int(updated_at) > 3600):
+            stale_seconds = getattr(settings, "oracle_stale_seconds", 3600)
+            now_ts = await self._get_chain_timestamp()
+            if now_ts is None:
+                now_ts = int(_time.time())
+            if updated_at and stale_seconds and now_ts >= int(updated_at) and (
+                now_ts - int(updated_at) > int(stale_seconds)
+            ):
                 logger.debug(
                     f"Oracle price stale for {token_symbol}: updated_at={updated_at}"
                 )
@@ -909,6 +983,49 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             return price
         except Exception as e:
             logger.debug(f"Oracle price fetch failed for {token_symbol}: {e}")
+            return None
+
+    def _normalize_oracle_symbol(self, token_symbol: str) -> str:
+        """Map token symbols to oracle feed symbols."""
+        symbol = token_symbol.upper()
+        if symbol == "WETH":
+            return "ETH"
+        return symbol
+
+    def _schedule_all_tokens_load(self) -> None:
+        if self._all_tokens_loaded or self._all_tokens_loading:
+            return
+        try:
+            self._all_tokens_loading = True
+            task = asyncio.create_task(self._load_all_tokens_async())
+            self._background_tasks.add(task)
+
+            def _done(_task: asyncio.Task) -> None:
+                self._all_tokens_loading = False
+                self._background_tasks.discard(_task)
+
+            task.add_done_callback(_done)
+        except RuntimeError:
+            self._all_tokens_loading = False
+
+    async def _get_chain_timestamp(self) -> Optional[int]:
+        """Fetch chain time with a short-lived cache to avoid RPC spamming."""
+        import time as _time
+
+        if self._last_block_timestamp and (_time.time() - self._last_block_ts_refresh) < 30:
+            return self._last_block_timestamp
+
+        try:
+            if not self._onchain_web3:
+                self._onchain_web3 = await Web3ConnectionFactory.create_connection(
+                    self._primary_chain_id
+                )
+            block = await self._onchain_web3.eth.get_block("latest")
+            timestamp = int(block.get("timestamp"))
+            self._last_block_timestamp = timestamp
+            self._last_block_ts_refresh = _time.time()
+            return timestamp
+        except Exception:
             return None
 
     def reset_failed_tokens(self):

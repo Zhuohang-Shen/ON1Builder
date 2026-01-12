@@ -23,6 +23,8 @@ def reset_manager_state(manager: ExternalAPIManager):
     manager._token_mappings = {}
     manager._all_tokens_loaded = True
     manager._all_tokens_load_time = 0
+    manager._oracle_feeds_by_chain = {1: {"ETH": "0x1"}}
+    manager._oracle_feeds = manager._oracle_feeds_by_chain[1]
 
 
 def test_rate_limit_tracker_backoff_when_near_limit(monkeypatch):
@@ -85,6 +87,49 @@ def test_parse_token_data_rejects_problematic_symbols():
 
     assert good is not None and good.symbol == "GOOD"
     assert bad is None
+
+
+def test_normalize_oracle_symbol_maps_weth():
+    manager = ExternalAPIManager()
+    reset_manager_state(manager)
+
+    assert manager._normalize_oracle_symbol("weth") == "ETH"
+
+
+@pytest.mark.asyncio
+async def test_get_price_falls_back_to_oracle_when_no_providers(monkeypatch):
+    manager = ExternalAPIManager()
+    reset_manager_state(manager)
+    manager.get_price = ExternalAPIManager.get_price.__get__(manager, ExternalAPIManager)  # type: ignore[attr-defined]
+    manager._initialize = AsyncMock()
+    manager._get_onchain_price = AsyncMock(return_value=None)
+    manager._get_oracle_price = AsyncMock(return_value=2000.0)
+    manager._providers = {}
+    manager._failed_tokens = set()
+
+    price = await manager.get_price("ETH")
+
+    assert price == 2000.0
+    manager._get_oracle_price.assert_awaited_once_with("ETH")
+
+
+def test_load_configured_oracle_feeds_merges(monkeypatch):
+    manager = ExternalAPIManager()
+    reset_manager_state(manager)
+    manager._oracle_feeds_by_chain = {1: {"ETH": "0x1"}}
+    manager._oracle_feeds = manager._oracle_feeds_by_chain[1]
+
+    monkeypatch.setattr(
+        "on1builder.integrations.external_apis.settings",
+        SimpleNamespace(
+            oracle_feeds={"1": {"ETH": "0x2"}, "56": {"BNB": "0xabc"}}
+        ),
+    )
+
+    manager._load_configured_oracle_feeds()
+
+    assert manager._oracle_feeds_by_chain[1]["ETH"] == "0x2"
+    assert manager._oracle_feeds_by_chain[56]["BNB"] == "0xabc"
 
 
 @pytest.mark.asyncio

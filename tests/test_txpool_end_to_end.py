@@ -153,6 +153,7 @@ async def test_txpool_scanner_executes_selected_strategies(monkeypatch):
         assert opportunity.get("path") == path
         assert opportunity.get("amount_in") == amount_in
         assert opportunity.get("profit_potential", 0) > 0
+        assert opportunity.get("expected_profit_eth") == opportunity.get("estimated_profit_eth")
 
 
 @pytest.mark.asyncio
@@ -313,3 +314,68 @@ async def test_txpool_scanner_detects_uniswap_v3(monkeypatch):
     for opp in opportunities:
         assert opp.get("dex") == "uniswap_v3"
         assert opp.get("fee") == fee
+
+
+@pytest.mark.asyncio
+async def test_txpool_scanner_detects_uniswap_v3_multihop(monkeypatch):
+    router_address = "0x1f98431c8ad98523631ae4a59f267346ea31f984"
+    stub_settings = SimpleNamespace(
+        contracts=SimpleNamespace(uniswap_v3_router={"1": router_address}),
+        chains=[1],
+        websocket_urls={1: "ws://private"},
+        rpc_urls={1: "http://private"},
+        allow_unsimulated_trades=True,
+        connection_retry_delay=0.1,
+    )
+    monkeypatch.setattr("on1builder.monitoring.txpool_scanner.settings", stub_settings)
+    monkeypatch.setattr(
+        "on1builder.monitoring.txpool_scanner.ABIRegistry", lambda: DummyABIRegistry()
+    )
+
+    import eth_abi
+
+    token_a = "0x" + "1" * 40
+    token_b = "0x" + "2" * 40
+    token_c = "0x" + "3" * 40
+    fee_1 = 3000
+    fee_2 = 500
+    recipient = "0x" + "4" * 40
+    deadline = 1_700_000_000
+    amount_in = 2 * 10**18
+    amount_out_min = 1 * 10**18
+
+    path_bytes = (
+        bytes.fromhex(token_a[2:])
+        + fee_1.to_bytes(3, "big")
+        + bytes.fromhex(token_b[2:])
+        + fee_2.to_bytes(3, "big")
+        + bytes.fromhex(token_c[2:])
+    )
+    encoded = eth_abi.encode(
+        ["(bytes,address,uint256,uint256,uint256)"],
+        [(path_bytes, recipient, deadline, amount_in, amount_out_min)],
+    )
+    tx_input = bytes.fromhex("c04b8d59" + encoded.hex())
+
+    tx = {
+        "hash": bytes.fromhex("55" * 32),
+        "from": "0xdead",
+        "to": router_address,
+        "value": 3 * 10**18,
+        "gasPrice": 60 * 10**9,
+        "gas": 21000,
+        "input": tx_input,
+    }
+    web3 = DummyWeb3(tx)
+    scanner = TxPoolScanner(web3, SimpleNamespace(), chain_id=1)
+
+    analysis = scanner._analyze_transaction_comprehensive(tx)
+    assert analysis["target_dex"] == "uniswap_v3"
+    assert analysis["fees"] == [fee_1, fee_2]
+    assert analysis["swap_path"] == [token_a, token_b, token_c]
+
+    opportunities = await scanner._analyze_for_opportunities(analysis)
+    assert opportunities
+    for opp in opportunities:
+        assert opp.get("dex") == "uniswap_v3"
+        assert opp.get("fees") == [fee_1, fee_2]
