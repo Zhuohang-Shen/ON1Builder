@@ -245,9 +245,25 @@ class ErrorRecoveryManager:
     async def _reconnect_web3(self, error: Exception, context: Dict[str, Any]) -> bool:
         """Attempt to reconnect Web3 connections."""
         try:
-            # This would reconnect Web3 instances
             logger.info("Attempting to reconnect Web3 connections...")
-            await asyncio.sleep(2)  # Simulate reconnection delay
+            from on1builder.utils.web3_factory import Web3ConnectionFactory
+            from on1builder.core.nonce_manager import NonceManager
+
+            chain_id = context.get("chain_id")
+            tm = context.get("transaction_manager")
+            if not chain_id or tm is None:
+                return False
+
+            new_web3 = await Web3ConnectionFactory.create_connection(
+                chain_id, force_new=True
+            )
+            tm._web3 = new_web3
+            if getattr(tm, "_gas_optimizer", None):
+                tm._gas_optimizer._web3 = new_web3
+            if getattr(tm, "_safety_guard", None):
+                tm._safety_guard._web3 = new_web3
+            tm._nonce_manager = NonceManager(new_web3, tm._address)
+            context["retry"] = True
             return True
         except Exception:
             return False
@@ -272,9 +288,10 @@ class ErrorRecoveryManager:
 
     async def _wait_for_funds(self, error: Exception, context: Dict[str, Any]) -> bool:
         """Wait for additional funds to be available."""
-        logger.info("Waiting for additional funds...")
-        await asyncio.sleep(30)  # Wait 30 seconds for potential deposits
-        return True
+        logger.info("Pausing trading due to insufficient funds (no blocking wait).")
+        context["trading_paused"] = True
+        context["pause_until"] = datetime.now() + timedelta(minutes=10)
+        return False
 
     async def _reduce_position_size(
         self, error: Exception, context: Dict[str, Any]
@@ -296,7 +313,11 @@ class ErrorRecoveryManager:
     async def _resync_nonce(self, error: Exception, context: Dict[str, Any]) -> bool:
         """Resync transaction nonce."""
         logger.info("Resyncing transaction nonce...")
-        # Implementation would resync nonce with nonce manager
+        tm = context.get("transaction_manager")
+        if tm is None or not getattr(tm, "_nonce_manager", None):
+            return False
+        await tm._nonce_manager.resync_nonce()
+        context["retry"] = True
         return True
 
     async def _increase_gas_price(
@@ -304,8 +325,15 @@ class ErrorRecoveryManager:
     ) -> bool:
         """Increase gas price for failed transactions."""
         logger.info("Increasing gas price for transaction retry...")
+        tx_params = context.get("retry_tx_params") or context.get("tx_params")
+        if not tx_params or "gasPrice" not in tx_params:
+            return False
         current_multiplier = context.get("gas_price_multiplier", 1.0)
-        context["gas_price_multiplier"] = min(current_multiplier * 1.2, 3.0)  # Max 3x
+        new_multiplier = min(current_multiplier * 1.2, 3.0)
+        context["gas_price_multiplier"] = new_multiplier
+        tx_params["gasPrice"] = int(tx_params["gasPrice"] * new_multiplier)
+        context["retry_tx_params"] = tx_params
+        context["retry"] = True
         return True
 
     async def _reduce_gas_limit(
@@ -313,8 +341,13 @@ class ErrorRecoveryManager:
     ) -> bool:
         """Reduce gas limit for failed transactions."""
         logger.info("Reducing gas limit for transaction retry...")
-        current_limit = context.get("gas_limit", 250000)
-        context["gas_limit"] = max(current_limit * 0.9, 100000)  # Min 100k gas
+        tx_params = context.get("retry_tx_params") or context.get("tx_params")
+        if not tx_params or "gas" not in tx_params:
+            return False
+        current_limit = tx_params.get("gas", 250000)
+        tx_params["gas"] = max(int(current_limit * 0.9), 100000)
+        context["retry_tx_params"] = tx_params
+        context["retry"] = True
         return True
 
     def get_error_statistics(self) -> Dict[str, Any]:

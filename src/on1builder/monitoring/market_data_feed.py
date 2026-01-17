@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple, Set
 from datetime import datetime, timedelta
@@ -14,6 +15,7 @@ from cachetools import TTLCache
 
 from on1builder.config.loaders import settings
 from on1builder.integrations.external_apis import ExternalAPIManager
+from on1builder.persistence.db_interface import DatabaseInterface
 from on1builder.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -25,6 +27,8 @@ class MarketDataFeed:
     def __init__(self, web3: Any):
         self._web3 = web3
         self._api_manager = ExternalAPIManager()
+        self._db_interface = DatabaseInterface()
+        self._db_ready = False
         # Only price a small, well-known universe to avoid log spam and flaky lookups
         self._allowed_symbols: Set[str] = set(
             self._api_manager.WELL_KNOWN_TOKENS
@@ -43,23 +47,42 @@ class MarketDataFeed:
         self._is_running = False
         self._update_task: Optional[asyncio.Task] = None
         self._analysis_task: Optional[asyncio.Task] = None
-        self.chain_id = self._resolve_chain_id()
+        self._last_persisted: Dict[str, float] = {}
+        self._persist_interval = float(
+            getattr(
+                settings, "market_price_persist_interval", settings.heartbeat_interval
+            )
+        )
+        self.chain_id = self._fallback_chain_id()
         logger.debug("MarketDataFeed initialized.")
 
-    def _resolve_chain_id(self) -> int:
+    def _fallback_chain_id(self) -> int:
+        fallback = getattr(settings, "chains", None) or []
+        return int(fallback[0]) if fallback else 0
+
+    async def _resolve_chain_id(self) -> int:
         """Best-effort chain ID resolution for logging/telemetry."""
         chain_id = None
         try:
             eth = getattr(self._web3, "eth", None)
-            chain_id = getattr(eth, "chain_id", None)
+            chain_attr = getattr(eth, "chain_id", None)
+            if asyncio.iscoroutine(chain_attr):
+                chain_id = await chain_attr
+            elif callable(chain_attr):
+                resolved = chain_attr()
+                if asyncio.iscoroutine(resolved):
+                    chain_id = await resolved
+                else:
+                    chain_id = resolved
+            else:
+                chain_id = chain_attr
         except Exception:
             chain_id = None
 
         try:
             return int(chain_id)
         except Exception:
-            fallback = getattr(settings, "chains", None) or []
-            return int(fallback[0]) if fallback else 0
+            return self._fallback_chain_id()
 
     async def start(self):
         if self._is_running:
@@ -67,6 +90,7 @@ class MarketDataFeed:
             return
 
         self._is_running = True
+        self.chain_id = await self._resolve_chain_id()
         logger.info(f"[Chain {self.chain_id}] Market Data Feed initialized")
         self._update_task = asyncio.create_task(self._update_loop())
         self._analysis_task = asyncio.create_task(self._analysis_loop())
@@ -125,6 +149,7 @@ class MarketDataFeed:
                 # Update price history
                 self._update_price_history(symbol_upper, price_decimal)
                 self._reset_failed_token(symbol_upper)
+                await self._persist_price(symbol_upper, price_decimal)
 
                 return price_decimal
             self._record_failed_token(symbol_upper)
@@ -134,6 +159,37 @@ class MarketDataFeed:
             logger.debug(f"Error retrieving price for {symbol_upper}: {e}")
             self._record_failed_token(symbol_upper)
             return None
+
+    async def _persist_price(self, symbol_upper: str, price: Decimal) -> None:
+        if self._persist_interval <= 0:
+            return
+
+        now = time.time()
+        last_ts = self._last_persisted.get(symbol_upper, 0.0)
+        if now - last_ts < self._persist_interval:
+            return
+
+        self._last_persisted[symbol_upper] = now
+
+        if not self._db_ready:
+            try:
+                await self._db_interface.initialize_db()
+                self._db_ready = True
+            except Exception as e:
+                logger.debug("Skipping price persistence; DB not ready: %s", e)
+                return
+
+        try:
+            await self._db_interface.save_market_price(
+                {
+                    "chain_id": self.chain_id,
+                    "symbol": symbol_upper,
+                    "price_usd": float(price),
+                    "source": "external_api",
+                }
+            )
+        except Exception as e:
+            logger.debug("Failed to persist price for %s: %s", symbol_upper, e)
 
     def _update_price_history(self, symbol: str, price: Decimal):
         """Updates price history for volatility and trend analysis."""

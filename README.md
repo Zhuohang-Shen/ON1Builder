@@ -6,6 +6,10 @@
 ![Tests](https://img.shields.io/badge/Tests-Manual%20%2F%20Local-inactive)
 ![Coverage](https://img.shields.io/badge/Coverage-TBD-lightgrey)
 
+```bash
+pip install on1builder
+```
+
 Async, multi-chain MEV/arbitrage engine with safety rails, flashloan support, and live telemetry. Highly customizable via config.
 
 ## Overview
@@ -96,8 +100,16 @@ python -m on1builder run start
 | `SIMULATION_BACKEND` | `eth_call`, `anvil`, or `tenderly` |
 | `SIMULATION_CONCURRENCY` | Max concurrent simulations |
 | `NOTIFICATION_CHANNELS` | `slack,telegram,discord,email` (blank = off) |
+| `ORACLE_FEEDS` | JSON map of chain_id → symbol → Chainlink feed address |
+| `ORACLE_STALE_SECONDS` | Max age (seconds) before oracle price is treated as stale |
+| `MARKET_PRICE_PERSIST_INTERVAL` | Persist price snapshots to DB every N seconds (0 disables) |
+| `STARTUP_TEST_TRANSACTION` | Run a diagnostic self-tx on startup (requires `ALLOW_INSUFFICIENT_FUNDS_TESTS`) |
+| `ALLOW_INSUFFICIENT_FUNDS_TESTS` | Bypass local balance checks for test sends (debug only) |
 
 Full list lives in `.env.example`.
+
+PublicNode endpoints can be used for EVM chains listed in `.env.example`. Non-EVM endpoints
+(Sui, Aptos, Osmosis, Avalanche P/X, Polygon Heimdall) are not supported by ON1Builder.
 
 ## Running & Monitoring
 
@@ -126,6 +138,17 @@ black src tests && flake8 src tests && mypy src
 ```
 
 Pre-commit hooks are configured in `.pre-commit-config.yaml`.
+
+## Optional Utilities
+
+ON1Builder ships a few utilities that are not required for core execution but can be
+integrated in advanced deployments:
+
+- `src/on1builder/utils/error_recovery.py`: Retry/circuit-breaker helpers and a recovery
+  manager. The TransactionManager now reports failures to this manager for tracking and
+  optional recovery strategies, but most strategies are placeholders by default.
+- `src/on1builder/utils/container.py`: A lightweight DI container for advanced lifecycle
+  management. The core runtime does not use it yet; opt in if you want centralized wiring.
 
 ## Flashloan setup
 You need to deploy your own flashloan provider contract or use an existing one. Make sure to configure the flashloan provider address in your strategy settings.

@@ -81,7 +81,7 @@ class ConfigurationManager:
         search_paths = [
             Path.cwd() / DEFAULT_ENV_FILE,
             Path.cwd().parent / DEFAULT_ENV_FILE,
-            Path.home() / f".{DEFAULT_ENV_FILE}",
+            Path.home() / DEFAULT_ENV_FILE,
             Path("/etc/on1builder") / DEFAULT_ENV_FILE,
         ]
 

@@ -141,6 +141,9 @@ class SafetyGuard:
 
     async def _check_balance(self, tx_params: TxParams) -> Tuple[bool, str]:
         """balance check with tier-aware requirements."""
+        if getattr(self._settings, "allow_insufficient_funds_tests", False):
+            return True, "Balance check bypassed for testing."
+
         try:
             tx_value = tx_params.get("value", 0)
             from_address = tx_params.get("from")

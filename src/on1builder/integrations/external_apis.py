@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # MIT License
 # Copyright (c) 2026 John Hauger Mitander
-
 from __future__ import annotations
 
 import asyncio
@@ -552,6 +551,11 @@ class ExternalAPIManager(metaclass=SingletonMeta):
 
         if not tasks:
             logger.debug(f"No healthy providers available for {token_symbol}")
+            oracle_price = await self._get_oracle_price(token_symbol_upper)
+            if oracle_price is not None and oracle_price > 0:
+                self._price_cache[token_symbol_upper] = oracle_price
+                self._failed_tokens.discard(token_symbol_upper)
+                return oracle_price
             return None
 
         # Use asyncio.wait with timeout to prevent blocking
@@ -844,7 +848,8 @@ class ExternalAPIManager(metaclass=SingletonMeta):
             if self._primary_chain_id != 1:
                 return None
 
-            feed_address = self._oracle_feeds.get(token_symbol.upper())
+            symbol = self._normalize_oracle_symbol(token_symbol)
+            feed_address = self._oracle_feeds.get(symbol)
             if not feed_address:
                 return None
 
@@ -910,6 +915,13 @@ class ExternalAPIManager(metaclass=SingletonMeta):
         except Exception as e:
             logger.debug(f"Oracle price fetch failed for {token_symbol}: {e}")
             return None
+
+    def _normalize_oracle_symbol(self, token_symbol: str) -> str:
+        """Map token symbols to oracle feed symbols."""
+        symbol = token_symbol.upper()
+        if symbol == "WETH":
+            return "ETH"
+        return symbol
 
     def reset_failed_tokens(self):
         """Reset the failed tokens list to give them another chance."""

@@ -183,6 +183,7 @@ class ChainWorker:
         self._tasks.append(asyncio.create_task(self._ON1Builder_heartbeat()))
         self._tasks.append(asyncio.create_task(self._balance_monitoring_loop()))
         self._tasks.append(asyncio.create_task(self._performance_reporting_loop()))
+        self._tasks.append(asyncio.create_task(self._run_startup_test_transaction()))
 
         await asyncio.gather(*self._tasks, return_exceptions=True)
 
@@ -214,6 +215,67 @@ class ChainWorker:
         await self._generate_final_report()
 
         logger.info(f"Closing ChainWorker...")
+
+    async def _run_startup_test_transaction(self) -> None:
+        """Attempt a startup test transaction for diagnostics."""
+        if not getattr(settings, "startup_test_transaction", False):
+            return
+        if not getattr(settings, "allow_insufficient_funds_tests", False):
+            logger.warning(
+                "[Chain %s] Startup test transaction skipped; "
+                "ALLOW_INSUFFICIENT_FUNDS_TESTS is disabled.",
+                self.chain_id,
+            )
+            return
+        if not self.tx_manager or not self.web3 or not self.account:
+            return
+
+        logger.warning(
+            "[Chain %s] Running startup test transaction (diagnostics only).",
+            self.chain_id,
+        )
+
+        try:
+            gas_price = await self.web3.eth.gas_price
+            max_allowed = self.web3.to_wei(settings.max_gas_price_gwei, "gwei")
+            if gas_price > max_allowed:
+                gas_price = max_allowed
+
+            nonce = (
+                await self.nonce_manager.get_next_nonce() if self.nonce_manager else 0
+            )
+            tx_params = {
+                "from": self.account.address,
+                "to": self.account.address,
+                "value": 0,
+                "gas": 21000,
+                "gasPrice": gas_price,
+                "nonce": nonce,
+                "chainId": self.chain_id,
+            }
+
+            try:
+                await self.tx_manager._simulate_transaction(tx_params)
+            except Exception as exc:
+                logger.debug(
+                    "[Chain %s] Startup test simulation failed: %s",
+                    self.chain_id,
+                    exc,
+                )
+
+            result = await self.tx_manager.execute_and_confirm(
+                tx_params,
+                "startup_test",
+                allow_recovery_retry=False,
+            )
+            if not result.get("success") and self.nonce_manager:
+                await self.nonce_manager.resync_nonce()
+        except Exception as exc:
+            logger.warning(
+                "[Chain %s] Startup test transaction failed: %s",
+                self.chain_id,
+                exc,
+            )
 
     def _cleanup_worker_caches(self) -> None:
         """Memory cleanup callback for worker-specific caches."""

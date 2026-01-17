@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# src/on1builder/utils/error_handling.py
-# flake8: noqa E501
+# MIT License
+# Copyright (c) 2026 John Hauger Mitander
+
 """
 ON1Builder – Error Handling Utilities
 ====================================

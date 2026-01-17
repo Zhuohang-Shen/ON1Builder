@@ -154,6 +154,90 @@ async def test_strategy_executor_respects_balance_tiers_and_ON1Builders_opportun
     assert "optimal_gas_price" in ON1Builder and ON1Builder["gas_viable"] is True
 
 
+@pytest.mark.asyncio
+async def test_strategy_executor_respects_feature_flags(monkeypatch):
+    """Disabled strategies should not be selected even with high weights."""
+    stub_settings = SimpleNamespace(
+        ml_exploration_rate=0.0,
+        ml_learning_rate=0.01,
+        ml_decay_rate=0.99,
+        allow_unsimulated_trades=True,
+        flashloan_enabled=False,
+        mev_strategies_enabled=True,
+        front_running_enabled=False,
+        back_running_enabled=True,
+        sandwich_attacks_enabled=False,
+        simulation_concurrency=1,
+    )
+    monkeypatch.setattr("on1builder.engines.strategy_executor.settings", stub_settings)
+
+    balance_summary = {
+        "balance": 2.0,
+        "balance_tier": "medium",
+        "wallet_address": "0xabc",
+        "max_investment": 1.0,
+        "profit_threshold": 0.05,
+        "flashloan_recommended": False,
+        "emergency_mode": False,
+    }
+    executor = StrategyExecutor(DummyTxManager(), DummyBalanceManager(balance_summary))
+    executor._exploration_rate = 0.0
+    executor._weights["front_run"] = [10.0]
+    executor._weights["flashloan_arbitrage"] = [8.0]
+    executor._weights["arbitrage"] = [2.0]
+    executor._weights["back_run"] = [0.1]
+
+    opportunity = {
+        "expected_profit_eth": 0.4,
+        "investment_amount": 1.0,
+        "simulated": True,
+    }
+    strategy_func, chosen = await executor._select_strategy(opportunity)
+    assert strategy_func is not None
+    assert chosen == "arbitrage"
+
+
+@pytest.mark.asyncio
+async def test_strategy_executor_respects_global_mev_toggle(monkeypatch):
+    """Global MEV toggle should suppress front/back/sandwich strategies."""
+    stub_settings = SimpleNamespace(
+        ml_exploration_rate=0.0,
+        ml_learning_rate=0.01,
+        ml_decay_rate=0.99,
+        allow_unsimulated_trades=True,
+        flashloan_enabled=True,
+        mev_strategies_enabled=False,
+        front_running_enabled=True,
+        back_running_enabled=True,
+        sandwich_attacks_enabled=True,
+        simulation_concurrency=1,
+    )
+    monkeypatch.setattr("on1builder.engines.strategy_executor.settings", stub_settings)
+
+    balance_summary = {
+        "balance": 2.0,
+        "balance_tier": "medium",
+        "wallet_address": "0xabc",
+        "max_investment": 1.0,
+        "profit_threshold": 0.05,
+        "flashloan_recommended": False,
+        "emergency_mode": False,
+    }
+    executor = StrategyExecutor(DummyTxManager(), DummyBalanceManager(balance_summary))
+    executor._exploration_rate = 0.0
+    executor._weights["back_run"] = [5.0]
+    executor._weights["arbitrage"] = [2.0]
+
+    opportunity = {
+        "expected_profit_eth": 0.4,
+        "investment_amount": 1.0,
+        "simulated": True,
+    }
+    strategy_func, chosen = await executor._select_strategy(opportunity)
+    assert strategy_func is not None
+    assert chosen == "arbitrage"
+
+
 def test_strategy_executor_updates_weights_with_context():
     """Weight updates should reward profitable executions with contextual signals."""
     balance_manager = DummyBalanceManager(

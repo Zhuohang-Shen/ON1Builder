@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -91,11 +92,16 @@ class _EnvSettings(BaseSettings):
     )
     bundle_target_block_offset: int = 1
     bundle_timeout_seconds: int = 30
+    allow_insufficient_funds_tests: bool = Field(
+        False, alias="ALLOW_INSUFFICIENT_FUNDS_TESTS"
+    )
+    startup_test_transaction: bool = Field(False, alias="STARTUP_TEST_TRANSACTION")
 
     # Balance and profit settings
     min_wallet_balance: float = 0.05
     min_profit_eth: float = 0.005
     min_profit_percentage: float = 0.1
+    profit_analysis_enabled: bool = False
     dynamic_profit_scaling: bool = True
     balance_risk_ratio: float = 0.3
     slippage_tolerance: float = 0.5
@@ -132,7 +138,7 @@ class _EnvSettings(BaseSettings):
     connection_retry_count: int = 5
     connection_retry_delay: float = 5.0
 
-    # ON1Builder arbitrage settings
+    # - arbitrage settings
     arbitrage_scan_interval: int = 15
 
     # Performance monitoring
@@ -141,6 +147,9 @@ class _EnvSettings(BaseSettings):
     # Market sentiment
     use_market_sentiment: bool = True
     sentiment_weight: float = 0.3
+    market_price_persist_interval: int = Field(
+        60, alias="MARKET_PRICE_PERSIST_INTERVAL"
+    )
 
     # MEV settings
     mev_strategies_enabled: bool = True
@@ -164,6 +173,7 @@ class _EnvSettings(BaseSettings):
     infura_project_id: Optional[str] = Field(None, alias="INFURA_PROJECT_ID")
 
     uniswap_v2_router_addresses: str = Field("{}", alias="UNISWAP_V2_ROUTER_ADDRESSES")
+    uniswap_v3_router_addresses: str = Field("{}", alias="UNISWAP_V3_ROUTER_ADDRESSES")
     sushiswap_router_addresses: str = Field("{}", alias="SUSHISWAP_ROUTER_ADDRESSES")
     aave_v3_pool_addresses: str = Field("{}", alias="AAVE_V3_POOL_ADDRESSES")
     simple_flashloan_contract_addresses: str = Field(
@@ -185,6 +195,25 @@ class _EnvSettings(BaseSettings):
     database_url: str = Field(
         "sqlite+aiosqlite:///on1builder_data.db", alias="DATABASE_URL"
     )
+
+    oracle_feeds: str = Field("{}", alias="ORACLE_FEEDS")
+    oracle_stale_seconds: int = Field(3600, alias="ORACLE_STALE_SECONDS")
+
+
+def _parse_json_env(value: Any, default: Any) -> Any:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return default
+        if stripped.startswith("{"):
+            try:
+                return json.loads(stripped)
+            except json.JSONDecodeError:
+                logger.warning("Invalid JSON for ORACLE_FEEDS; using defaults.")
+                return default
+    return default
 
 
 def _gather_dynamic_env_vars() -> Dict[str, Any]:
@@ -256,6 +285,7 @@ def load_settings(env_path: Optional[Path] = None) -> GlobalSettings:
 
     contract_settings = ContractAddressSettings(
         uniswap_v2_router=env_settings.uniswap_v2_router_addresses,
+        uniswap_v3_router=env_settings.uniswap_v3_router_addresses,
         sushiswap_router=env_settings.sushiswap_router_addresses,
         aave_v3_pool=env_settings.aave_v3_pool_addresses,
         simple_flashloan_contract=env_settings.simple_flashloan_contract_addresses,
@@ -280,6 +310,7 @@ def load_settings(env_path: Optional[Path] = None) -> GlobalSettings:
     # Gather all static and dynamic data
     final_config_data = env_settings.model_dump()
     final_config_data.update(_gather_dynamic_env_vars())
+    final_config_data["oracle_feeds"] = _parse_json_env(env_settings.oracle_feeds, {})
 
     # Populate nested models
     final_config_data["api"] = api_settings

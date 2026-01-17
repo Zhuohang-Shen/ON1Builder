@@ -50,7 +50,7 @@ class Transaction(Base):
     timestamp = Column(DateTime, default=utcnow, nullable=False, index=True)
     raw_tx = Column(Text, nullable=True)
 
-    # ON1Builder tracking fields
+    # - tracking fields
     execution_time_s = Column(Float, nullable=True)  # Execution time in seconds
     nonce = Column(BigInteger, nullable=True)
     max_fee_per_gas = Column(BigInteger, nullable=True)  # EIP-1559
@@ -240,6 +240,33 @@ class MarketCondition(Base):
             "competition_level": self.competition_level,
             "most_profitable_strategy": self.most_profitable_strategy,
             "avg_success_rate": self.avg_success_rate,
+        }
+
+
+class MarketPrice(Base):
+    """Model for storing token price snapshots."""
+
+    __tablename__ = "market_prices"
+    __table_args__ = (
+        Index("ix_market_prices_chain_symbol_ts", "chain_id", "symbol", "timestamp"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    chain_id = Column(Integer, nullable=False, index=True)
+    symbol = Column(String(32), nullable=False, index=True)
+    price_usd = Column(Float, nullable=False)
+    source = Column(String(32), nullable=True)
+    timestamp = Column(DateTime, default=utcnow, nullable=False, index=True)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Converts the model instance to a dictionary."""
+        return {
+            "id": self.id,
+            "chain_id": self.chain_id,
+            "symbol": self.symbol,
+            "price_usd": self.price_usd,
+            "source": self.source,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
         }
 
 

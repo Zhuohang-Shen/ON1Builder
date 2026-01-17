@@ -35,6 +35,7 @@ from on1builder.utils.custom_exceptions import (
     StrategyExecutionError,
     TransactionError,
 )
+from on1builder.utils.error_recovery import get_error_recovery_manager
 from on1builder.utils.logging_config import get_logger
 from on1builder.utils.notification_service import NotificationService
 from on1builder.utils.gas_optimizer import GasOptimizer
@@ -159,9 +160,12 @@ class TransactionManager:
             if should_proceed:
                 tx_params["gasPrice"] = self._web3.to_wei(optimal_gas_gwei, "gwei")
             else:
-                raise InsufficientFundsError(
-                    "Gas price too high relative to expected profit"
-                )
+                if getattr(settings, "allow_insufficient_funds_tests", False):
+                    tx_params["gasPrice"] = await self._web3.eth.gas_price
+                else:
+                    raise InsufficientFundsError(
+                        "Gas price too high relative to expected profit"
+                    )
         else:
             tx_params["gasPrice"] = await self._web3.eth.gas_price
 
@@ -196,26 +200,26 @@ class TransactionManager:
             raise StrategyExecutionError(f"Safety check failed: {reason}")
 
         # Additional balance check
-        max_cost = tx_params.get("value", 0) + (
-            tx_params.get("gas", 0) * tx_params.get("gasPrice", 0)
-        )
-        current_balance = await self._balance_manager.update_balance()
-        balance_wei = self._web3.to_wei(current_balance, "ether")
-
-        if max_cost > balance_wei:
-            raise InsufficientFundsError(
-                f"Insufficient balance for transaction. Required: {max_cost}, Available: {balance_wei}"
+        if not getattr(settings, "allow_insufficient_funds_tests", False):
+            max_cost = tx_params.get("value", 0) + (
+                tx_params.get("gas", 0) * tx_params.get("gasPrice", 0)
             )
+            current_balance = await self._balance_manager.update_balance()
+            balance_wei = self._web3.to_wei(current_balance, "ether")
+
+            if max_cost > balance_wei:
+                raise InsufficientFundsError(
+                    f"Insufficient balance for transaction. Required: {max_cost}, Available: {balance_wei}"
+                )
 
         logger.debug(f"Signing transaction for nonce {tx_params['nonce']}.")
         signed_tx: SignedTransaction = self._account.sign_transaction(tx_params)
+        raw_tx = self._get_raw_transaction_bytes(signed_tx)
 
         for attempt in range(settings.transaction_retry_count):
             try:
                 if settings.submission_mode == "public":
-                    tx_hash = await self._web3.eth.send_raw_transaction(
-                        signed_tx.rawTransaction
-                    )
+                    tx_hash = await self._web3.eth.send_raw_transaction(raw_tx)
                     logger.info(f"Transaction sent: {tx_hash.hex()}")
                     return tx_hash.hex()
                 elif settings.submission_mode == "private":
@@ -223,9 +227,7 @@ class TransactionManager:
                         raise StrategyExecutionError(
                             "submission_mode is private but no private_rpc_url configured"
                         )
-                    tx_hash_hex = await self._send_private_transaction(
-                        signed_tx.rawTransaction
-                    )
+                    tx_hash_hex = await self._send_private_transaction(raw_tx)
                     logger.info(f"Private transaction sent: {tx_hash_hex}")
                     return tx_hash_hex
                 elif settings.submission_mode == "bundle":
@@ -234,7 +236,7 @@ class TransactionManager:
                             "submission_mode is bundle but no bundle_relay_url configured"
                         )
                     tx_hash_hex = signed_tx.hash.hex()
-                    bundle_hash = await self._send_bundle([signed_tx.rawTransaction])
+                    bundle_hash = await self._send_bundle([raw_tx])
                     self._last_bundle_hash = bundle_hash
                     logger.info(
                         "Bundle submitted: %s (tx: %s)", bundle_hash, tx_hash_hex
@@ -272,6 +274,7 @@ class TransactionManager:
                         )
                     tx_params["gasPrice"] = bumped
                     signed_tx = self._account.sign_transaction(tx_params)
+                    raw_tx = self._get_raw_transaction_bytes(signed_tx)
                     logger.info(
                         f"Gas price bumped to {bumped} wei due to underpriced replacement."
                     )
@@ -324,7 +327,7 @@ class TransactionManager:
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": method,
-                "params": [raw_tx.hex()],
+                "params": [self._format_raw_tx(raw_tx)],
             }
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -371,7 +374,7 @@ class TransactionManager:
             "method": "eth_sendBundle",
             "params": [
                 {
-                    "txs": [tx.hex() for tx in raw_txs],
+                    "txs": [self._format_raw_tx(tx) for tx in raw_txs],
                     "blockNumber": hex(target_block),
                     "minTimestamp": now,
                     "maxTimestamp": now + self._bundle_timeout_seconds,
@@ -456,11 +459,29 @@ class TransactionManager:
         self._bundle_signer_key = key
         return self._bundle_signer_account
 
+    @staticmethod
+    def _format_raw_tx(raw_tx: bytes) -> str:
+        """Ensure raw transaction hex is 0x-prefixed for JSON-RPC payloads."""
+        hex_str = raw_tx.hex()
+        return hex_str if hex_str.startswith("0x") else f"0x{hex_str}"
+
+    @staticmethod
+    def _get_raw_transaction_bytes(signed_tx: SignedTransaction) -> bytes:
+        raw_tx = getattr(signed_tx, "rawTransaction", None)
+        if raw_tx is None:
+            raw_tx = getattr(signed_tx, "raw_transaction", None)
+        if raw_tx is None:
+            raise StrategyExecutionError(
+                "Signed transaction missing raw transaction bytes."
+            )
+        return raw_tx
+
     async def execute_and_confirm(
         self,
         tx_params: TxParams,
         strategy_name: str,
         expected_profit: Optional[Decimal] = None,
+        allow_recovery_retry: bool = True,
     ) -> Dict[str, Any]:
         """execution with profit tracking and comprehensive logging."""
 
@@ -470,6 +491,10 @@ class TransactionManager:
         try:
             # Pre-execution balance
             pre_balance = await self._balance_manager.update_balance()
+
+            if expected_profit is not None:
+                tx_params = dict(tx_params)
+                tx_params["expected_profit_eth"] = float(expected_profit)
 
             tx_hash = await self._sign_and_send(tx_params)
             receipt = await self.wait_for_receipt(tx_hash)
@@ -532,6 +557,21 @@ class TransactionManager:
                     Decimal(str(actual_profit_eth)), strategy_name
                 )
 
+            profit_analysis = None
+            if getattr(settings, "profit_analysis_enabled", False):
+                try:
+                    profit_calculator = getattr(self, "_profit_calculator", None)
+                    if profit_calculator is None:
+                        profit_calculator = ProfitCalculator(self._web3)
+                        self._profit_calculator = profit_calculator
+                    profit_analysis = (
+                        await profit_calculator.calculate_transaction_profit(
+                            tx_hash, strategy_name
+                        )
+                    )
+                except Exception as exc:
+                    logger.debug("Profit analysis failed: %s", exc)
+
             result = {
                 "success": status,
                 "tx_hash": tx_hash,
@@ -543,6 +583,7 @@ class TransactionManager:
                 "pre_balance": float(pre_balance),
                 "post_balance": float(post_balance),
                 "strategy": strategy_name,
+                "profit_analysis": profit_analysis,
             }
 
             # Send notification for significant profits or failures
@@ -569,6 +610,35 @@ class TransactionManager:
             InsufficientFundsError,
             ConnectionError,
         ) as e:
+            try:
+                recovery_manager = get_error_recovery_manager()
+                recovery_context = {
+                    "chain_id": self._chain_id,
+                    "strategy": strategy_name,
+                    "tx_params": tx_params,
+                    "retry_tx_params": dict(tx_params),
+                    "transaction_manager": self,
+                }
+                await recovery_manager.handle_error(
+                    e,
+                    recovery_context,
+                    "TransactionManager",
+                )
+                if allow_recovery_retry and recovery_context.get("retry"):
+                    retry_params = recovery_context.get("retry_tx_params")
+                    if retry_params:
+                        return await self.execute_and_confirm(
+                            retry_params,
+                            strategy_name,
+                            expected_profit,
+                            allow_recovery_retry=False,
+                        )
+            except Exception as recovery_exc:
+                logger.debug(
+                    "Error recovery handling failed: %s",
+                    recovery_exc,
+                    exc_info=True,
+                )
             logger.error(f"Execution failed for strategy '{strategy_name}': {e}")
             await self._notification_service.send_alert(
                 title=f"Strategy '{strategy_name}' Failed",
@@ -744,6 +814,26 @@ class TransactionManager:
 
         return resolved_path
 
+    @staticmethod
+    def _encode_uniswap_v3_path(tokens: List[str], fees: List[int]) -> bytes:
+        """Encode Uniswap V3 path bytes from token addresses and fee tiers."""
+        if len(tokens) != len(fees) + 1:
+            raise StrategyExecutionError(
+                "Uniswap V3 path requires fees for each hop (len(tokens) = len(fees) + 1)."
+            )
+
+        encoded = b""
+        for idx, fee in enumerate(fees):
+            if fee < 0 or fee >= 2**24:
+                raise StrategyExecutionError(
+                    f"Invalid Uniswap V3 fee tier: {fee}. Must fit uint24."
+                )
+            token = tokens[idx]
+            encoded += bytes.fromhex(token[2:])
+            encoded += int(fee).to_bytes(3, "big")
+        encoded += bytes.fromhex(tokens[-1][2:])
+        return encoded
+
     async def _calculate_amounts_with_slippage(
         self, opportunity: Dict[str, Any], expected_amount_out: Optional[int] = None
     ) -> Tuple[int, int]:
@@ -810,6 +900,10 @@ class TransactionManager:
                 )
 
         dex_name = opportunity.get("dex", "uniswap")
+        if dex_name in {"uniswap_v3", "uniswapv3", "v3"}:
+            return await self._execute_swap_v3(
+                opportunity, strategy_name, simulate_only
+            )
         dex_contract = await self._get_dex_contract(dex_name)
 
         # Normalize path to checksum addresses for web3 compatibility
@@ -888,6 +982,107 @@ class TransactionManager:
             return {"success": True, "simulated": True}
 
         # Override gas price if specified
+        if opportunity.get("gas_price_wei"):
+            tx_params["gasPrice"] = Wei(opportunity["gas_price_wei"])
+        elif opportunity.get("optimal_gas_price"):
+            tx_params["gasPrice"] = self._web3.to_wei(
+                opportunity["optimal_gas_price"], "gwei"
+            )
+
+        expected_profit = opportunity.get("expected_profit_eth", 0)
+        return await self.execute_and_confirm(
+            tx_params,
+            strategy_name,
+            Decimal(str(expected_profit)) if expected_profit else None,
+        )
+
+    async def _execute_swap_v3(
+        self, opportunity: Dict[str, Any], strategy_name: str, simulate_only: bool
+    ) -> Dict[str, Any]:
+        """Execute Uniswap V3 swap using exactInput or exactInputSingle."""
+        dex_contract = await self._get_dex_contract("uniswap_v3")
+
+        raw_path = await self._get_swap_path(opportunity)
+        path = [self._web3.to_checksum_address(addr) for addr in raw_path]
+
+        expected_out = opportunity.get("expected_amount_out") or opportunity.get(
+            "amount_out_min"
+        )
+        if not expected_out or expected_out <= 0:
+            raise StrategyExecutionError(
+                "Uniswap V3 requires expected_amount_out/amount_out_min for slippage protection."
+            )
+
+        amount_in, amount_out_min = await self._calculate_amounts_with_slippage(
+            opportunity, expected_amount_out=expected_out
+        )
+
+        deadline = int(time.time()) + 300
+        sqrt_price_limit = int(opportunity.get("sqrt_price_limit_x96", 0))
+
+        wrapped_native = self._get_wrapped_native_address()
+        token_in = path[0].lower()
+        value = Wei(amount_in) if token_in == wrapped_native else Wei(0)
+
+        if token_in != wrapped_native:
+            allowance = await self._get_token_allowance(path[0], dex_contract.address)
+            if allowance < amount_in:
+                raise StrategyExecutionError(
+                    f"Token allowance too low for spender {dex_contract.address}: {allowance} < {amount_in}"
+                )
+
+        if len(path) == 2:
+            fee = opportunity.get("fee") or opportunity.get("pool_fee")
+            if fee is None:
+                raise StrategyExecutionError(
+                    "Uniswap V3 single-hop swaps require fee or pool_fee."
+                )
+            params = (
+                path[0],
+                path[1],
+                int(fee),
+                self._address,
+                deadline,
+                amount_in,
+                amount_out_min,
+                sqrt_price_limit,
+            )
+            function_call = dex_contract.functions.exactInputSingle(params)
+        else:
+            fees = opportunity.get("fees")
+            if not fees:
+                raise StrategyExecutionError(
+                    "Uniswap V3 multi-hop swaps require fees list."
+                )
+            path_bytes = self._encode_uniswap_v3_path(path, [int(f) for f in fees])
+            params = (
+                path_bytes,
+                self._address,
+                deadline,
+                amount_in,
+                amount_out_min,
+            )
+            function_call = dex_contract.functions.exactInput(params)
+
+        tx_data = function_call.build_transaction(
+            {
+                "from": self._address,
+                "value": value,
+                "gas": settings.default_gas_limit,
+            }
+        )["data"]
+
+        tx_params = await self._build_transaction(
+            to=dex_contract.address, data=tx_data, value=value
+        )
+
+        if not opportunity.get("simulated", False):
+            await self._simulate_transaction(tx_params)
+            opportunity["simulated"] = True
+
+        if simulate_only:
+            return {"success": True, "simulated": True}
+
         if opportunity.get("gas_price_wei"):
             tx_params["gasPrice"] = Wei(opportunity["gas_price_wei"])
         elif opportunity.get("optimal_gas_price"):

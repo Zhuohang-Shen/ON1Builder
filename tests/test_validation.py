@@ -122,6 +122,11 @@ class TestValidateChainIds:
         result = ConfigValidator.validate_chain_ids([5, 80001])
         assert set(result) == {5, 80001}
 
+    def test_base_chain(self):
+        """Test Base chain ID is valid."""
+        result = ConfigValidator.validate_chain_ids([8453])
+        assert result == [8453]
+
 
 class TestValidateRpcUrls:
     """Test RPC URL validation."""
@@ -451,6 +456,22 @@ class TestValidateCompleteConfig:
         result = validate_complete_config(config)
         assert "wallet_address" in result
         assert "chains" in result
+
+    def test_notification_channel_validation(self):
+        """Test invalid notification channels are rejected."""
+        config = {
+            "notifications": {"channels": ["slack", "unknown"], "min_level": "info"}
+        }
+
+        with pytest.raises(ValidationError):
+            validate_complete_config(config)
+
+    def test_bundle_signer_key_normalization(self):
+        """Test bundle signer key is validated and normalized."""
+        config = {"bundle_signer_key": "0x" + "b" * 64}
+
+        result = validate_complete_config(config)
+        assert result["bundle_signer_key"] == "b" * 64
 
     def test_config_with_validation_error(self):
         """Test configuration with validation error."""

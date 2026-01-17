@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from on1builder.config.loaders import settings
 from on1builder.config.settings import DatabaseSettings
 from on1builder.utils.logging_config import get_logger
-from .db_models import Base, Transaction, ProfitRecord
+from .db_models import Base, Transaction, ProfitRecord, MarketPrice
 import asyncio
 
 logger = get_logger(__name__)
@@ -86,6 +86,7 @@ class DatabaseInterface:
             # Nothing to initialize for in-memory stub
             self._engine._store.setdefault("transactions", [])
             self._engine._store.setdefault("profit_records", [])
+            self._engine._store.setdefault("market_prices", [])
         else:
             async with self._engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
@@ -175,6 +176,80 @@ class DatabaseInterface:
                 if attempt > retries:
                     return None
                 await asyncio.sleep(0.5 * attempt)
+
+    async def save_market_price(
+        self, price_data: Dict[str, Any], retries: int = 1
+    ) -> Optional[MarketPrice]:
+        """
+        Saves a single market price snapshot to the database.
+
+        Args:
+            price_data: A dictionary containing market price data.
+
+        Returns:
+            The saved MarketPrice object or None on failure.
+        """
+        attempt = 0
+        while attempt <= retries:
+            try:
+                if self._is_stub:
+                    record = MarketPrice(**price_data)
+                    self._engine._store["market_prices"].append(record)
+                    return record
+
+                async with self._session_factory() as session:
+                    async with session.begin():
+                        record = MarketPrice(**price_data)
+                        session.add(record)
+                    await session.refresh(record)
+                    return record
+            except Exception as e:
+                attempt += 1
+                logger.error(
+                    "Failed to save market price %s: %s (attempt %s/%s)",
+                    price_data.get("symbol"),
+                    e,
+                    attempt,
+                    retries + 1,
+                    exc_info=True,
+                )
+                if attempt > retries:
+                    return None
+                await asyncio.sleep(0.5 * attempt)
+
+    async def get_latest_market_price(
+        self, chain_id: int, symbol: str
+    ) -> Optional[MarketPrice]:
+        """
+        Retrieves the most recent market price for a token on a chain.
+
+        Args:
+            chain_id: Chain ID to filter by.
+            symbol: Token symbol to filter by.
+
+        Returns:
+            The latest MarketPrice record or None if not found.
+        """
+        symbol_upper = symbol.upper()
+        if self._is_stub:
+            records = [
+                record
+                for record in self._engine._store.get("market_prices", [])
+                if getattr(record, "chain_id", None) == chain_id
+                and getattr(record, "symbol", "").upper() == symbol_upper
+            ]
+            return records[-1] if records else None
+
+        async with self._session_factory() as session:
+            stmt = (
+                select(MarketPrice)
+                .where(MarketPrice.chain_id == chain_id)
+                .where(MarketPrice.symbol == symbol_upper)
+                .order_by(MarketPrice.timestamp.desc())
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
 
     async def get_transaction_by_hash(self, tx_hash: str) -> Optional[Transaction]:
         """
