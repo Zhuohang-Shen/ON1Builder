@@ -1,10 +1,10 @@
 # ON1Builder
 
+# Project has moved and been replaced with -> https://github.com/John0n1/oxidity-searcher
+
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Status](https://img.shields.io/badge/Status-Active-success)
 ![Tests](https://img.shields.io/badge/Tests-Manual%20%2F%20Local-inactive)
-![Coverage](https://img.shields.io/badge/Coverage-TBD-lightgrey)
 
 ```bash
 pip install on1builder
